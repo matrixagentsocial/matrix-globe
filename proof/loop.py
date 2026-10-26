@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 from proof.bundle import (
     BundleClaim, BundleCost, BundleEvent, BundleRound, BundleTests,
-    ModelRef, ModelsRef, ProofBundle, TaskRef, TestCounts, sha256_text,
+    ModelRef, ModelsRef, ProofBundle, TaskRef, TestCounts, format_usd, sha256_text,
 )
 from proof.proofrule import prove_claims
 from proof.pytest_runner import run_pytest
@@ -482,8 +482,8 @@ class ProofLoop:
             finalCode=final_code,
             tests=BundleTests(public=public, proven=proven),
             status=status,
-            cost=BundleCost(inputTokens=in_tok, outputTokens=out_tok, usd=round(usd, 6),
-                            reviewerUsd=round(reviewer_usd, 6)),
+            cost=BundleCost(inputTokens=in_tok, outputTokens=out_tok, usd=format_usd(usd),
+                            reviewerUsd=format_usd(reviewer_usd)),
             sandbox=self.sandbox_label,
             llmCalls=self.counter["calls"],
         )

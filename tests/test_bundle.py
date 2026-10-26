@@ -30,6 +30,26 @@ def test_bundle_model_roundtrip_hash_stable():
     assert again.sha256() == bundle.sha256()
 
 
+def _assert_no_float(value, path="$"):
+    assert not isinstance(value, float), f"float at {path}: {value!r}"
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _assert_no_float(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _assert_no_float(item, f"{path}[{index}]")
+
+
+def test_canonical_bundle_dump_contains_no_float():
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    bundle = ProofBundle.model_validate(data)
+    dumped = json.loads(bundle.canonical_json())
+    _assert_no_float(dumped)
+    # money fields are 6-decimal strings
+    assert dumped["cost"]["usd"] == "0.010000"
+    assert dumped["cost"]["reviewerUsd"] == "0.008000"
+
+
 def test_canonical_json_sorted_no_spaces_unicode():
     s = canonical_json({"b": "café", "a": 1})
     assert s == '{"a":1,"b":"café"}'

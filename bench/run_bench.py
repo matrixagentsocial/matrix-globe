@@ -138,6 +138,7 @@ def run_condition(
     sandbox_label: str = "local",
     max_usd_per_single_run: float = 0.40,
     on_row: Any = None,
+    run_suffix: str = "",
 ) -> list[dict[str, Any]]:
     """Run any condition A-E via the proof loop; one row per task x seed."""
     from proof.loop import run_proof
@@ -146,7 +147,7 @@ def run_condition(
     rows: list[dict[str, Any]] = []
     for task in tasks:
         for seed in range(seeds):
-            run_id = f"bench-{cond}-{task.id}-s{seed}"
+            run_id = f"bench-{cond}-{task.id}-s{seed}{run_suffix}"
             before_usd = ledger.total_usd() if ledger is not None and hasattr(ledger, "total_usd") else 0.0
             before_reviewer = 0.0
             if ledger is not None and hasattr(ledger, "entries"):
@@ -245,6 +246,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bundles-dir", default=None, help="bundles output dir")
     parser.add_argument("--max-usd-per-run", type=float, default=0.40,
                         help="stop if a single run exceeds this USD cost")
+    parser.add_argument("--run-suffix", default="",
+                        help="suffix appended to every run id (keeps pilot variants distinct)")
     args = parser.parse_args(argv)
 
     if args.sandbox == "docker":
@@ -293,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             client=client, sandbox=sandbox, seeds=args.seeds, ledger=ledger,
             settings=settings, bundles_dir=bundles_dir, sandbox_label=args.sandbox,
             max_usd_per_single_run=args.max_usd_per_run, on_row=_on_row,
+            run_suffix=args.run_suffix,
         )
     finally:
         out_handle.close()

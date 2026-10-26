@@ -11,7 +11,7 @@ import hashlib
 import json
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def canonical_json(data: Any) -> str:
@@ -73,11 +73,28 @@ class BundleTests(BaseModel):
     proven: TestCounts = Field(default_factory=TestCounts)
 
 
+def format_usd(value: float | int | str | None) -> str:
+    """Format a USD amount as a string with exactly 6 decimals.
+
+    Bundles are re-serialised in JavaScript by the web viewer; floats
+    such as 7.48e-05 format differently in JS and Python and break the
+    hash check, so money in the bundle is always this string form.
+    """
+    if value is None or value == "":
+        return "0.000000"
+    return f"{float(value):.6f}"
+
+
 class BundleCost(BaseModel):
     inputTokens: int = 0
     outputTokens: int = 0
-    usd: float = 0.0
-    reviewerUsd: float = 0.0
+    usd: str = "0.000000"
+    reviewerUsd: str = "0.000000"
+
+    @field_validator("usd", "reviewerUsd", mode="before")
+    @classmethod
+    def _coerce_usd(cls, value: Any) -> str:
+        return format_usd(value)
 
 
 class BundleEvent(BaseModel):
