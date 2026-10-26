@@ -9,6 +9,7 @@ Running log for Matrix Globe. Updated every session.
 | M0 — Gate + skeleton | done (Official Rules step pending; rules not yet published, tracked separately) |
 | M1 — Sandbox + tasks + builder | done |
 | M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
+| M3 — FinCode-30 complete | part 1 done (tasks + reviewer fixes; zero LLM calls); part 2 pending (pilot A/B/D on dev, calibrate, freeze `prompts-v1`) |
 
 ## Verified facts (M0)
 
@@ -102,7 +103,7 @@ for builder/run_bench and a validate_tasks fixture.
 - Proof rule (`proof/proofrule.py`): each claim's test runs in its own
   file in the sandbox -> PROVEN / UNPROVEN / INVALID (collection, syntax,
   bad import, timeout); bench-only validity vs `reference.py` -> VALID /
-  HALLUCINATED.
+  UNCONFIRMED.
 - Reviser (`proof/roles/reviser.py`, Spark) -> `{code, addressed[],
   contested[]}`; self-refine (`proof/roles/self_refine.py`) for C and the
   free-form reviewer (`prompts/reviewer_freeform.md`, plain text, no
@@ -117,14 +118,14 @@ for builder/run_bench and a validate_tasks fixture.
 - ProofBundle (`proof/bundle.py`, pydantic): canonical JSON
   (sort_keys, separators `(",", ":")`, `ensure_ascii=False`, UTF-8) +
   sha256. Fixture `tests/fixtures/bundle_fixture.json` + expected sha256
-  `a1c65de8ac74af10e5893baf3f9ffb512a89516fc0954d590d588a828cbce7e3`
+  `4b671d61a33699440eb7c78cb83165a2c06cead654c9d348cf5830a4e5e8ef44`
   for the web viewer to test against later.
 - `bench/run_bench.py` supports `--cond A|B|C|D|E` (plus `--task <id>`),
   writes bundles to `results/bundles/` and per-run JSONL with the M1
   fields plus, for D/E, claims proposed/proven/unproven/invalid/valid/
-  hallucinated, rounds and regressions, and `reviewer_usd` separately.
+  unconfirmed, rounds and regressions, and `reviewer_usd` separately.
 - Unit tests: 72 passed (`.venv\Scripts\python -m pytest -q`), with a
-  mocked LLM covering proof-rule classification (incl. hallucinated),
+  mocked LLM covering proof-rule classification (incl. unconfirmed),
   loop guards (round, call, $ and wall-clock caps), rollback on
   regression, recovery after a failed step, bundle hash stability and
   strict-schema checks.
@@ -161,7 +162,7 @@ Results in `results/runs/condD_dev_20261026T212537Z.jsonl`, bundles in
 
 Condition D total: $1.4850 (reviewer $1.4752). All 6 tasks pass public
 + hidden; 5 VERIFIED, 1 PARTIAL (split_installments: the single proven
-claim was HALLUCINATED and its test still fails on the revision, so the
+claim was UNCONFIRMED and its test still fails on the revision, so the
 status honestly stays PARTIAL even though hidden tests pass).
 
 Surprises:
@@ -171,14 +172,14 @@ Surprises:
   more than expected: receivables_aging $0.5106 exceeded the $0.40
   single-run stop threshold (the bench guard stopped the batch after
   writing its row; split_installments was then run alone with `--task`),
-  and split_installments cost $0.3620 for one hallucinated claim.
+  and split_installments cost $0.3620 for one unconfirmed claim.
 - number_parsing: the reviewer call truncated at 16,384 `max_tokens`
   (reasoning ate the budget, empty content). The loop recorded a
   `step_failed` event, continued with the builder code and finished
   VERIFIED with `rounds=0`. Reviewer `max_tokens` is now 32,768, as
   the builder already was; not re-run live (budget, see below).
 - Hallucinated claims are real: 3 of 5 proven claims across D were
-  HALLUCINATED (the reference fails their tests too). The reviser still
+  UNCONFIRMED (the reference fails their tests too). The reviser still
   "addressed" them; in split_installments that left the claim test
   failing, hence PARTIAL. Reviewer precision on this tiny sample:
   2 valid / 5 proven.
@@ -191,6 +192,94 @@ Surprises:
   run live: any further live call would have exceeded the session cap
   knowingly. Its cost is still unmeasured; run it first in the next
   session (expected order $0.10-0.30 based on Wonder output pricing).
+
+## M3 part 1 results (2026-10-26, tasks + reviewer fixes, zero LLM calls)
+
+No bench runs, no demo, no smoke calls this session. API spend: $0.
+
+- Reviewer scope fix (root cause of all 3 M2 UNCONFIRMED claims: they
+  tested amounts around 1e30, outside any range the specs state):
+  `prompts/reviewer.md` now requires every claim to stay inside the
+  input domain the spec defines (types, ranges, formats, examples);
+  anything the spec does not specify is not a defect and goes to
+  `untested_concerns`. The rule that every claim quotes the exact spec
+  sentence it relies on is kept and strengthened.
+- `prompts/reviser.md`: the reviser may contest a claim that asks for
+  behaviour the spec does not require, with a one-sentence reason
+  quoting the spec. The loop already excluded contested claims from
+  the proven count in `ProofLoop.evaluate` (PLAN.md 5.4); that is now
+  covered by a mocked-LLM test
+  (`test_condition_d_contested_claim_excluded_from_verified`,
+  including a lower-case claim id from the reviser), so a contested
+  out-of-scope claim can no longer leave a run PARTIAL the way
+  `split_installments` ended in M2.
+- Bench validity label renamed: a proven claim whose test also fails
+  on the reference is now `UNCONFIRMED` (was `HALLUCINATED`; the
+  ground truth does not confirm it). `VALID` is unchanged. Renamed in
+  `proof/proofrule.py` (constant), `proof/bundle.py`,
+  `bench/run_bench.py` (`claims_unconfirmed`), unit tests and this
+  file. The bundle fixture now carries an `UNCONFIRMED` claim and its
+  expected sha256 is
+  `4b671d61a33699440eb7c78cb83165a2c06cead654c9d348cf5830a4e5e8ef44`.
+  Historical run JSONL and bundles under `results/` keep the label
+  they were recorded with.
+- FinCode-30 complete: 24 new tasks (4 dev + 20 test), each with
+  `spec.md` (8-15 numbered rules, every hidden-tested rule stated,
+  worked examples), `public_test.py` (3-5 tests), `hidden_test.py`
+  (15-21 tests on rule interactions), a stdlib-only `reference.py`
+  and `meta.json`. Spot checks were re-derived independently (CIF
+  control digit, RF check digits `RF741`, ACT/ACT ISDA fraction
+  0.1696309604, APY 12.682503 / 12.749685, tax on 50000 = 14201.50,
+  amortization payment 34.00/34.00/34.01).
+- `madrid_cutoff` reference: `zoneinfo` is primary, with a pure-stdlib
+  EU DST fallback when no tzdata is installed (Windows, slim images),
+  so it validates outside Linux CI too.
+- `bench/validate_tasks.py` extended: every hidden test function name
+  must be unique, and no task file may import a non-stdlib module
+  (test files may also import `solution` and `pytest`). Both checks
+  have unit tests. `validate_tasks.py` is green for all 30 tasks
+  (reference passes public + hidden, naive stub fails hidden, hidden
+  not a subset of public, unique names, stdlib only).
+- Unit tests: 76 passed, 4 skipped (Docker live tests).
+
+FinCode-30 tasks (30 = 10 dev + 20 test):
+
+| task | split | difficulty |
+|---|---|---|
+| allocate_ratios | test | medium |
+| amortization_schedule | dev | hard |
+| apr_apy | test | medium |
+| bank_reconciliation | test | hard |
+| budget_variance | test | medium |
+| business_days | dev | medium |
+| currency_rounding | dev | medium |
+| day_count | dev | hard |
+| depreciation_declining | test | hard |
+| depreciation_straight_line | test | hard |
+| duplicate_payments | test | hard |
+| eom_roll | test | hard |
+| fifo_cost | dev | hard |
+| fx_triangulation | test | hard |
+| iban_validation | dev | medium |
+| idempotent_ledger | test | hard |
+| madrid_cutoff | test | hard |
+| number_parsing | dev | hard |
+| percent_change | test | medium |
+| progressive_tax | test | hard |
+| prorata_billing | test | hard |
+| receivables_aging | dev | easy |
+| rf_reference | test | medium |
+| running_balance | test | medium |
+| spanish_bank_csv | test | hard |
+| spanish_tax_id | test | hard |
+| split_installments | dev | easy |
+| vat_invoice | dev | hard |
+| weighted_average_cost | test | hard |
+| xirr | test | expert |
+
+Next step (unchanged): M3 part 2 — pilot A/B/D on the 10 dev tasks,
+calibrate difficulty into the 35-70% single-shot band, tune prompts
+on dev only, freeze prompts (tag `prompts-v1`).
 
 ## Dollars spent
 
@@ -221,4 +310,4 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-M3 — FinCode-30 complete (PLAN.md section 6, row D4): 30 tasks validated, pilot A & D on the 10 dev tasks, calibrate difficulty (the 6 current dev tasks are too easy), tune prompts on dev only, freeze prompts (tag prompts-v1). First, in a fresh session with budget, run one live condition B (Wonder, effort max) on one dev task to measure its cost, which M2 could not do within its session cap.
+M3 part 2 — pilot A/B/D on the 10 dev tasks, calibrate difficulty into the 35-70% single-shot band (the 6 original dev tasks are too easy; the 4 new dev tasks are the hard ones), tune prompts on dev only, freeze prompts (tag `prompts-v1`). First, in a fresh session with budget, run one live condition B (Wonder, effort max) on one dev task to measure its cost, which M2 could not do within its session cap.
