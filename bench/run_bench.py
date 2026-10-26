@@ -6,7 +6,7 @@ reviser; E like D with free-text review and no proof rule. Each run
 writes a ProofBundle to ``results/bundles/`` and one JSONL line with
 task id, condition, seed, model, effort, hidden/public passed/total,
 all_pass, usd, reviewer_usd, duration; D/E also carry claims
-proposed/proven/unproven/invalid/valid/hallucinated, rounds, regressions.
+proposed/proven/unproven/invalid/valid/unconfirmed, rounds, regressions.
 
 Run from the repo root, e.g.:
 ``.venv\\Scripts\\python bench\\run_bench.py --cond D --split dev --limit 6 --seeds 1 --sandbox local``
@@ -106,7 +106,7 @@ def run_condition_a(
 
 def _claim_counts(bundle: Any) -> dict[str, int]:
     counts = {"claims_proposed": 0, "claims_proven": 0, "claims_unproven": 0,
-              "claims_invalid": 0, "claims_valid": 0, "claims_hallucinated": 0}
+              "claims_invalid": 0, "claims_valid": 0, "claims_unconfirmed": 0}
     for rnd in getattr(bundle, "rounds", []) or []:
         for c in getattr(rnd, "claims", []) or []:
             counts["claims_proposed"] += 1
@@ -120,8 +120,8 @@ def _claim_counts(bundle: Any) -> dict[str, int]:
             validity = str(getattr(c, "validity", "") or "").upper()
             if validity == "VALID":
                 counts["claims_valid"] += 1
-            elif validity == "HALLUCINATED":
-                counts["claims_hallucinated"] += 1
+            elif validity == "UNCONFIRMED":
+                counts["claims_unconfirmed"] += 1
     return counts
 
 

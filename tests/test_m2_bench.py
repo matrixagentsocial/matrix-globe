@@ -47,7 +47,7 @@ def test_run_condition_d_mocked_writes_bundle(tmp_path):
     assert row["condition"] == "D"
     assert row["claims_proposed"] == 0 and row["claims_proven"] == 0
     assert row["claims_unproven"] == 0 and row["claims_invalid"] == 0
-    assert row["claims_valid"] == 0 and row["claims_hallucinated"] == 0
+    assert row["claims_valid"] == 0 and row["claims_unconfirmed"] == 0
     assert row["rounds"] == 1 and row["regressions"] == 0
     assert row["all_pass"] is True
     bundle_file = tmp_path / "bundles" / f"{row['run_id']}.json"

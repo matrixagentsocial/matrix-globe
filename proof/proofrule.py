@@ -7,7 +7,7 @@ cannot hide the others.
 - test passes -> UNPROVEN
 - does not collect / syntax error / bad import / timeout -> INVALID
 Bench only: a PROVEN test run against ``reference.py`` that passes is
-VALID; if the reference also fails it is HALLUCINATED.
+VALID; if the reference also fails it is UNCONFIRMED.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ PROVEN = "PROVEN"
 UNPROVEN = "UNPROVEN"
 INVALID = "INVALID"
 VALID = "VALID"
-HALLUCINATED = "HALLUCINATED"
+UNCONFIRMED = "UNCONFIRMED"
 
 
 def _get(claim: Any, key: str, default: str = "") -> str:
@@ -43,7 +43,7 @@ def test_filename(claim: Any) -> str:
 class ClaimProof:
     claim: Any
     status: str  # PROVEN | UNPROVEN | INVALID
-    validity: str | None = None  # VALID | HALLUCINATED | None (bench only)
+    validity: str | None = None  # VALID | UNCONFIRMED | None (bench only)
     output: str = ""
     passed_on_current: bool = False
 
@@ -118,8 +118,8 @@ def prove_claim(claim: Any, code: str, sandbox: Any, *, reference_code: str | No
     if status == PROVEN and reference_code is not None:
         ref_result = run_pytest(sandbox, reference_code, {fname: failing_test},
                                 timeout_s=timeout_s, origin=origin)
-        # Reference passes -> VALID; reference also fails -> HALLUCINATED.
-        validity = VALID if ref_result.all_passed else HALLUCINATED
+        # Reference passes -> VALID; reference also fails -> UNCONFIRMED.
+        validity = VALID if ref_result.all_passed else UNCONFIRMED
         output += f"\n[bench validity vs reference: {validity}]"
     return ClaimProof(claim=claim, status=status, validity=validity, output=output,
                       passed_on_current=(status == UNPROVEN))

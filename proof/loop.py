@@ -181,7 +181,7 @@ class ProofLoop:
         proven_passed = 0
         proven_total = 0
         for proof in self.all_proven:
-            if proof.id in self.contested_ids:
+            if proof.id.lower() in self.contested_ids:
                 continue
             proven_total += 1
             fname = f"test_proven_{proof.id}.py".replace("-", "_")
@@ -304,7 +304,7 @@ class ProofLoop:
             round_rec.addressed = [a.model_dump() for a in revision.addressed]
             round_rec.contested = [c.model_dump() for c in revision.contested]
             for c in revision.contested:
-                self.contested_ids.add(c.claim_id)
+                self.contested_ids.add(str(c.claim_id).lower())
             # verify candidate; rollback on regression
             try:
                 public, proven_c, score, _ = self.evaluate(revision.code)

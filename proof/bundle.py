@@ -50,7 +50,7 @@ class BundleClaim(BaseModel):
     title: str = ""
     severity: str = ""
     status: str = ""  # PROVEN | UNPROVEN | INVALID (or final pass/fail)
-    validity: str | None = None  # VALID | HALLUCINATED | None
+    validity: str | None = None  # VALID | UNCONFIRMED | None
     testSha256: str = ""
 
 

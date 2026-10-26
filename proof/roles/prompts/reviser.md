@@ -12,6 +12,14 @@ code in a sandbox. Fix the proven defects.
 - If you believe a proven claim is wrong (its test contradicts the
   spec), put it in `contested` with the claim id and your reason.
   Contesting does not remove the test; be sure before you contest.
+- You may also contest a claim that asks for behaviour the spec does
+  not require, for example a test that uses inputs outside the domain
+  (types, ranges, formats) the spec defines, or that demands a result
+  for a case the spec never specifies. In that case the `reason` must
+  be one sentence quoting the exact spec sentence (or the absence of
+  one: "The spec does not require ...") that shows the behaviour is
+  not required. Contested claims are excluded from the verified
+  count, so only contest when you can quote the spec.
 - Do not break behaviour that currently passes. Keep the public API
   from the spec exactly, use only the stdlib, and never use `float`
   for money maths.

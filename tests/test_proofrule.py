@@ -1,5 +1,5 @@
 """Proof-rule classification with the local sandbox (no LLM)."""
-from proof.proofrule import HALLUCINATED, INVALID, PROVEN, UNPROVEN, VALID, prove_claim, prove_claims
+from proof.proofrule import UNCONFIRMED, INVALID, PROVEN, UNPROVEN, VALID, prove_claim, prove_claims
 from proof.sandbox.local import LocalSandbox
 
 GOOD = "def add(a, b):\n    return a + b\n"
@@ -43,10 +43,10 @@ def test_valid_when_reference_passes_proven_test():
     assert p.status == PROVEN and p.validity == VALID
 
 
-def test_hallucinated_when_reference_also_fails():
+def test_unconfirmed_when_reference_also_fails():
     p = prove_claim(claim("C1", "from solution import add\n\ndef test_c1():\n    assert add(1, 2) == 99\n"),
                     GOOD, LocalSandbox(), reference_code=GOOD)
-    assert p.status == PROVEN and p.validity == HALLUCINATED
+    assert p.status == PROVEN and p.validity == UNCONFIRMED
 
 
 def test_one_bad_test_cannot_hide_others():

@@ -147,6 +147,30 @@ def test_condition_d_unproven_claim_discarded():
     assert not any(r == "reviser" for r, _ in client.calls)
 
 
+def test_condition_d_contested_claim_excluded_from_verified():
+    def reviewer(text):
+        return {"verdict": "defects_found",
+                "claims": [claim("C1", "from solution import add\n\ndef test_c1():\n    assert add(-1, 2) == 1\n")],
+                "untested_concerns": []}
+
+    class ContestingClient(FakeClient):
+        def complete(self, role, messages, **kwargs):
+            if role == "reviser":
+                self.calls.append((role, kwargs))
+                return {"code": EDGE_BAD, "addressed": [],
+                        "contested": [{"claim_id": "c1",
+                                       "reason": "The spec does not require this case."}]}
+            return super().complete(role, messages, **kwargs)
+
+    client = ContestingClient(builder_code=EDGE_BAD, reviewer_fn=reviewer)
+    b = run(mode="D", client=client)
+    # The proven test still fails on the final code, but the claim was
+    # contested, so it is excluded from the proven count (PLAN.md 5.4).
+    assert b.rounds[0].contested[0]["claim_id"] == "c1"
+    assert b.tests.proven.total == 0
+    assert b.status == "VERIFIED"
+
+
 def test_condition_e_freeform_no_proof():
     client = FakeClient(builder_code=BAD)
     b = run(mode="E", client=client)

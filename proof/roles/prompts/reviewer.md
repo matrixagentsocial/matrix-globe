@@ -17,6 +17,22 @@ executable test.
 - Put style, design or other remarks that you cannot make executable in
   `untested_concerns`. They are shown but never counted as defects.
 
+## Stay inside the spec's input domain
+
+- Every claim must stay inside the input domain the spec defines: the
+  types, ranges, formats and examples the spec states. Only test inputs
+  that the spec says the code must handle.
+- If the spec does not say what must happen for an input or a case, that
+  is not a defect. Do not make a claim about it; put it in
+  `untested_concerns` instead, marked as unspecified by the spec.
+- In particular, do not claim defects for extreme or out-of-domain
+  inputs (for example magnitudes, sizes or formats outside any range
+  the spec states) unless a spec sentence you can quote requires the
+  code to handle them.
+- Every claim must quote, in `spec_reference`, the exact spec sentence
+  that requires the behaviour your test checks. If you cannot quote
+  such a sentence, the claim does not belong in `claims`.
+
 ## The failing test
 
 - Each `failing_test` is ONE single pytest function, for example
