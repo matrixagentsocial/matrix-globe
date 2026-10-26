@@ -60,7 +60,10 @@ def test_docker_sees_no_secrets(monkeypatch):
             "import os\n\n"
             "def test_no_secret():\n"
             "    assert 'MODEL_API_KEY' not in os.environ\n"
-            "    assert not any(k.endswith('_KEY') for k in os.environ)\n"
+            "    assert not any('should-never-leak' in v for v in os.environ.values())\n"
+            "    # The official python image sets GPG_KEY (Python's public release\n"
+            "    # signing key fingerprint); nothing else may end in _KEY.\n"
+            "    assert not [k for k in os.environ if k.endswith('_KEY') and k != 'GPG_KEY']\n"
         )
     }
     result = run_pytest(DockerSandbox(), SOLUTION, tests, timeout_s=60, origin="external")
