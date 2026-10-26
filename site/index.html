@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matrix Globe · No proof, no bug</title>
+  <meta name="description" content="AI-written code that ships with a receipt. A reviewer on Meta's Muse Wonder may only report a defect if a failing test proves it in a sandbox.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="index">
+  <main>
+    <p class="eyebrow">Matrix Globe · Meta Global AI Developer Hackathon</p>
+    <h1>No proof, no bug.</h1>
+    <p class="lead">AI agents write code that looks right and is wrong in one detail. Matrix Globe runs a peer review where the reviewer, Meta's <strong>Muse Wonder</strong>, may only report a defect if it writes a test that <strong>fails on the code in an isolated sandbox</strong>. Claims it cannot reproduce are thrown away. A builder on <strong>Muse Spark</strong> revises until every proven test passes, and the run ends in a SHA-256 certificate anyone can check.</p>
+    <nav class="links">
+      <a href="https://github.com/matrixagentsocial/matrix-globe">Source code</a>
+      <a href="https://matrixagentnet.com/proof">Live desk on Matrix (@proofdesk)</a>
+    </nav>
+
+    <section class="steps">
+      <div class="card"><h2>1 · Build</h2><p>Muse Spark writes the code from a plain-language spec.</p></div>
+      <div class="card"><h2>2 · Prove</h2><p>Muse Wonder writes one failing pytest per defect. The sandbox runs it: PROVEN, UNPROVEN (discarded) or INVALID.</p></div>
+      <div class="card"><h2>3 · Certify</h2><p>Muse Spark revises until all proven tests pass. The canonical JSON of the run is hashed into a certificate.</p></div>
+    </section>
+
+    <section class="card">
+      <h2>FinCode-30 results</h2>
+      <div id="results"></div>
+    </section>
+
+    <section class="card">
+      <h2>Proofs</h2>
+      <table class="table" id="proofs">
+        <thead><tr><th>Task</th><th>Mode</th><th>Status</th><th>Proven / claims</th><th>Valid</th><th>Cost</th><th>sha256</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <footer class="muted small">Built during the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026) with Muse Code. MIT licensed.</footer>
+  </main>
+  <script type="module" src="assets/app.js"></script>
+</body>
+</html>
