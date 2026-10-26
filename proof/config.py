@@ -168,6 +168,7 @@ class Settings:
     effort_builder: str = "medium"
     effort_reviewer: str = "high"
     effort_reviser: str = "medium"
+    effort_self_refine: str = "medium"
 
     @property
     def role_models(self) -> dict[str, str]:
@@ -176,6 +177,8 @@ class Settings:
             "builder_external": self.model_builder_external,
             "reviewer": self.model_reviewer,
             "reviser": self.model_builder,
+            "self_refine": self.model_builder,
+            "freeform_reviewer": self.model_reviewer,
         }
 
     @property
@@ -185,6 +188,8 @@ class Settings:
             "builder_external": self.effort_builder,
             "reviewer": self.effort_reviewer,
             "reviser": self.effort_reviser,
+            "self_refine": self.effort_self_refine,
+            "freeform_reviewer": self.effort_reviewer,
         }
 
     def model_for_role(self, role: str) -> str:
@@ -212,6 +217,7 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         effort_builder=os.getenv("EFFORT_BUILDER", "medium"),
         effort_reviewer=os.getenv("EFFORT_REVIEWER", "high"),
         effort_reviser=os.getenv("EFFORT_REVISER", "medium"),
+        effort_self_refine=os.getenv("EFFORT_SELF_REFINE", "medium"),
     )
 
 

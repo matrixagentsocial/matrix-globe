@@ -44,6 +44,8 @@ def build_solution(
     *,
     run_id: str | None = None,
     max_tokens: int = BUILDER_MAX_TOKENS,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> str:
     """Ask the builder model for a full ``solution.py`` and return its code.
 
@@ -52,6 +54,11 @@ def build_solution(
     hard specs to an empty reply.
     """
     prompt = build_prompt(spec)
+    extra: dict[str, Any] = {}
+    if model is not None:
+        extra["model"] = model
+    if effort is not None:
+        extra["effort"] = effort
     result = client.complete(
         "builder",
         [{"role": "user", "content": prompt}],
@@ -59,6 +66,7 @@ def build_solution(
         run_id=run_id,
         max_tokens=max_tokens,
         metadata={"origin": "bench"},
+        **extra,
     )
     if isinstance(result, dict):
         code = result.get("code")
