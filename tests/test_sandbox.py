@@ -93,4 +93,14 @@ def test_docker_command_construction(tmp_path):
     assert cmd[cmd.index("--user") + 1] == "1000:1000"
     assert cmd[cmd.index("-v") + 1] == f"{tmp_path}:/work:ro"
     assert cmd[cmd.index("-v") + 2] == DEFAULT_IMAGE
+    assert cmd[cmd.index("-w") + 1] == "/work"
     assert cmd[-4:] == ["python", "-m", "pytest", "-q"]
+
+
+def test_docker_command_with_out_dir_and_name(tmp_path):
+    out = tmp_path / "out"
+    cmd = build_docker_command(tmp_path, ["python", "-V"], outdir=out, name="mg-test")
+    assert cmd[cmd.index("--name") + 1] == "mg-test"
+    mounts = [cmd[i + 1] for i, part in enumerate(cmd) if part == "-v"]
+    assert mounts == [f"{tmp_path}:/work:ro", f"{out}:/out:rw"]
+    assert cmd[cmd.index(f"{out}:/out:rw") + 1] == DEFAULT_IMAGE

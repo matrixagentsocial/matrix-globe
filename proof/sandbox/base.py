@@ -40,6 +40,9 @@ class Sandbox(abc.ABC):
     """Abstract sandbox. ``python_cmd`` is how to invoke Python inside it."""
 
     python_cmd: str = "python"
+    # Path, as seen inside the sandbox, where pytest writes its JUnit report.
+    # The report comes back in ``RunResult.output_files["report.xml"]``.
+    report_path: str = "report.xml"
 
     @abc.abstractmethod
     def run(

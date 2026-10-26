@@ -141,7 +141,7 @@ def run_pytest(
         "-q",
         "-p",
         "no:cacheprovider",
-        "--junitxml=report.xml",
+        f"--junitxml={sandbox.report_path}",
         *test_names,
     ]
     run = sandbox.run(files, cmd, timeout_s=timeout_s, origin=origin)
