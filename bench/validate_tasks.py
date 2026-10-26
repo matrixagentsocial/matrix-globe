@@ -5,7 +5,10 @@ For every task under ``bench/tasks/``:
 - the reference solution passes all public + hidden tests,
 - a naive stub/plausible-but-wrong solution fails at least one
   hidden test,
-- the hidden test function names are not a subset of the public ones.
+- the hidden test function names are not a subset of the public ones,
+- every hidden test function name is unique,
+- no task file imports a non-stdlib module (test files may also import
+  ``solution`` and ``pytest``).
 
 Prints a table and exits non-zero on any failure. Run from the repo
 root: ``.venv\\Scripts\\python bench\\validate_tasks.py``
@@ -120,13 +123,51 @@ def naive_solution_for(task_id: str) -> str:
 
 
 def test_function_names(source: str) -> set[str]:
+    return set(test_function_name_list(source))
+
+
+def test_function_name_list(source: str) -> list[str]:
     tree = ast.parse(source)
-    return {
+    return [
         node.name
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name.startswith("test")
+    ]
+
+
+def imported_top_level_modules(source: str) -> set[str]:
+    tree = ast.parse(source)
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                modules.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level and node.level > 0:
+                continue
+            if node.module:
+                modules.add(node.module.split(".")[0])
+    return modules
+
+
+# Test files may import the solution under test and pytest; everything
+# else (and everything in reference.py) must be stdlib.
+_TEST_ONLY_MODULES = {"pytest", "solution"}
+
+
+def non_stdlib_imports(task: Task) -> list[str]:
+    bad: list[str] = []
+    sources = {
+        "reference.py": (task.reference, set()),
+        "public_test.py": (task.public_test, _TEST_ONLY_MODULES),
+        "hidden_test.py": (task.hidden_test, _TEST_ONLY_MODULES),
     }
+    for filename, (source, extra_allowed) in sources.items():
+        allowed = set(sys.stdlib_module_names) | extra_allowed
+        for module in sorted(imported_top_level_modules(source) - allowed):
+            bad.append(f"{filename}: {module}")
+    return bad
 
 
 @dataclass
@@ -135,11 +176,19 @@ class TaskValidation:
     reference_ok: bool
     naive_fails_hidden: bool
     hidden_not_subset: bool
+    hidden_names_unique: bool = True
+    stdlib_only: bool = True
     detail: str = ""
 
     @property
     def ok(self) -> bool:
-        return self.reference_ok and self.naive_fails_hidden and self.hidden_not_subset
+        return (
+            self.reference_ok
+            and self.naive_fails_hidden
+            and self.hidden_not_subset
+            and self.hidden_names_unique
+            and self.stdlib_only
+        )
 
 
 def validate_task(task: Task, sandbox: LocalSandbox | None = None) -> TaskValidation:
@@ -170,18 +219,29 @@ def validate_task(task: Task, sandbox: LocalSandbox | None = None) -> TaskValida
         detail_parts.append("naive stub passed all hidden tests")
 
     public_names = test_function_names(task.public_test)
-    hidden_names = test_function_names(task.hidden_test)
+    hidden_name_list = test_function_name_list(task.hidden_test)
+    hidden_names = set(hidden_name_list)
     hidden_not_subset = not hidden_names.issubset(public_names)
     if not hidden_not_subset:
         detail_parts.append("hidden test names are a subset of public ones")
     if not hidden_names:
         detail_parts.append("no hidden tests found")
+    hidden_names_unique = len(hidden_name_list) == len(hidden_names)
+    if not hidden_names_unique:
+        dupes = sorted({n for n in hidden_name_list if hidden_name_list.count(n) > 1})
+        detail_parts.append(f"duplicate hidden test names: {', '.join(dupes)}")
+    bad_imports = non_stdlib_imports(task)
+    stdlib_only = not bad_imports
+    if not stdlib_only:
+        detail_parts.append(f"non-stdlib imports: {', '.join(bad_imports)}")
 
     return TaskValidation(
         task_id=task.id,
         reference_ok=reference_ok,
         naive_fails_hidden=naive_fails,
         hidden_not_subset=hidden_not_subset,
+        hidden_names_unique=hidden_names_unique,
+        stdlib_only=stdlib_only,
         detail="; ".join(detail_parts),
     )
 
@@ -196,12 +256,14 @@ def format_table(results: list[TaskValidation]) -> str:
         return "ok" if ok else "FAIL"
 
     lines = [
-        f"{'task':<22} {'reference':<10} {'naive fails':<12} {'hidden not subset':<18} result",
+        f"{'task':<26} {'reference':<10} {'naive fails':<12} {'hidden not subset':<18} "
+        f"{'unique names':<13} {'stdlib only':<12} result",
     ]
     for r in results:
         lines.append(
-            f"{r.task_id:<22} {mark(r.reference_ok):<10} "
+            f"{r.task_id:<26} {mark(r.reference_ok):<10} "
             f"{mark(r.naive_fails_hidden):<12} {mark(r.hidden_not_subset):<18} "
+            f"{mark(r.hidden_names_unique):<13} {mark(r.stdlib_only):<12} "
             f"{'ok' if r.ok else 'FAIL'}"
             + (f"  ({r.detail})" if r.detail else "")
         )

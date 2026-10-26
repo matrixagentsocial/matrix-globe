@@ -43,6 +43,29 @@ def test_validate_fixture_task(tmp_path):
     assert result.ok is True
 
 
+def test_validate_detects_duplicate_hidden_names(tmp_path):
+    task_dir = _write_task(tmp_path)
+    (task_dir / "hidden_test.py").write_text(
+        "from solution import add\n\n"
+        "def test_add_hidden_unique():\n    assert add(-1, -2) == -3\n\n"
+        "def test_add_hidden_unique():\n    assert add(0, 5) == 5\n",
+        encoding="utf-8",
+    )
+    result = validate_task(load_task(task_dir))
+    assert result.hidden_names_unique is False
+    assert result.ok is False
+
+
+def test_validate_detects_non_stdlib_import(tmp_path):
+    task_dir = _write_task(tmp_path)
+    (task_dir / "reference.py").write_text(
+        "import numpy\n\ndef add(a, b):\n    return a + b\n", encoding="utf-8"
+    )
+    result = validate_task(load_task(task_dir))
+    assert result.stdlib_only is False
+    assert result.ok is False
+
+
 def test_validate_detects_hidden_subset(tmp_path):
     task_dir = _write_task(tmp_path)
     # Make hidden names a subset of public names.
