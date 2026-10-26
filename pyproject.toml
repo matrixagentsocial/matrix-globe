@@ -18,6 +18,8 @@ dependencies = [
     "httpx",
     "pytest",
     "python-dotenv",
+    # IANA tz database for zoneinfo: Windows and slim images ship none.
+    "tzdata",
 ]
 
 [tool.setuptools.packages.find]

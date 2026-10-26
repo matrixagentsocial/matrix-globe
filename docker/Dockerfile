@@ -2,7 +2,8 @@
 # Build: docker build -t matrix-globe-runner:py311 -f docker/Dockerfile docker/
 FROM python:3.11-slim
 
-RUN pip install --no-cache-dir "pytest==9.1.1"
+# tzdata: the IANA time zone database for zoneinfo (FinCode madrid_cutoff).
+RUN pip install --no-cache-dir "pytest==9.1.1" "tzdata==2026.5"
 
 WORKDIR /work
 
