@@ -35,19 +35,29 @@ def build_prompt(spec: str) -> str:
     return f"{template}\n\n## Task spec\n\n{spec}\n"
 
 
+BUILDER_MAX_TOKENS = 32768
+
+
 def build_solution(
     client: Any,
     spec: str,
     *,
     run_id: str | None = None,
+    max_tokens: int = BUILDER_MAX_TOKENS,
 ) -> str:
-    """Ask the builder model for a full ``solution.py`` and return its code."""
+    """Ask the builder model for a full ``solution.py`` and return its code.
+
+    ``max_tokens`` is generous: reasoning tokens count inside it
+    (Decisions of 2026-10-26), and the default client budget truncates
+    hard specs to an empty reply.
+    """
     prompt = build_prompt(spec)
     result = client.complete(
         "builder",
         [{"role": "user", "content": prompt}],
         schema=BUILDER_SCHEMA,
         run_id=run_id,
+        max_tokens=max_tokens,
         metadata={"origin": "bench"},
     )
     if isinstance(result, dict):

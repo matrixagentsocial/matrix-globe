@@ -47,6 +47,7 @@ def run_condition_a(
     model: str = "",
     effort: str = "",
     max_usd_per_run_check: float = MAX_USD_PER_SINGLE_RUN,
+    on_row: Any = None,
 ) -> list[dict[str, Any]]:
     """Run condition A over *tasks*; return one row dict per task x seed."""
     from proof.roles.builder import build_solution
@@ -96,6 +97,8 @@ def run_condition_a(
                     "run_id": run_id,
                 }
             )
+            if on_row is not None:
+                on_row(rows[-1])
     return rows
 
 
@@ -158,23 +161,33 @@ def main(argv: list[str] | None = None) -> int:
     model = settings.model_for_role("builder")
     effort = settings.effort_for_role("builder")
 
-    rows = run_condition_a(
-        tasks,
-        client=client,
-        sandbox=sandbox,
-        seeds=args.seeds,
-        ledger=ledger,
-        model=model,
-        effort=effort,
-    )
-
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_path = (
         Path(args.out)
         if args.out
         else REPO_ROOT / "results" / "runs" / f"condA_{args.split}_{stamp}.jsonl"
     )
-    write_rows(rows, out_path)
+    # Write each row as it completes so a later failure keeps earlier rows.
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_handle = out_path.open("a", encoding="utf-8")
+
+    def _on_row(row: dict[str, Any]) -> None:
+        out_handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        out_handle.flush()
+
+    try:
+        rows = run_condition_a(
+            tasks,
+            client=client,
+            sandbox=sandbox,
+            seeds=args.seeds,
+            ledger=ledger,
+            model=model,
+            effort=effort,
+            on_row=_on_row,
+        )
+    finally:
+        out_handle.close()
     print(format_results_table(rows))
     print(f"wrote {len(rows)} rows to {out_path}")
     total_usd = sum(r["usd"] for r in rows)
