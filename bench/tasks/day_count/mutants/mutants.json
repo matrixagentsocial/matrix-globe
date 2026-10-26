@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "7",
+    "description": "Applies the February end-date adjustment in 30/360 US even when the start is not the last day of February."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "8",
+    "description": "Does not cap the end day at 30 in 30E/360."
+  },
+  {
+    "id": "m3",
+    "kind": "rounding_step",
+    "rule": "10",
+    "description": "Computes accrued interest from the 10-place rounded fraction instead of the unrounded fraction."
+  }
+]

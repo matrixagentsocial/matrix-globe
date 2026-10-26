@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "2",
+    "description": "Modified Following never falls back to the previous business day across a month boundary."
+  },
+  {
+    "id": "m2",
+    "kind": "boundary",
+    "rule": "3",
+    "description": "A zero move rolls forward to the next business day instead of returning the start date."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "3",
+    "description": "Accepts bool as the business-day count."
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "9",
+    "description": "Creates buy lots without adding the buy fee to the lot cost."
+  },
+  {
+    "id": "m2",
+    "kind": "rounding_step",
+    "rule": "13",
+    "description": "Quantizes remaining unit costs to cents instead of four decimal places."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "6",
+    "description": "Allows prices with more than four decimal places."
+  }
+]

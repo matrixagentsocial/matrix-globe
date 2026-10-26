@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "7",
+    "description": "Computes variance percent against the absolute budget instead of the signed budget."
+  },
+  {
+    "id": "m2",
+    "kind": "rounding_mode",
+    "rule": "7",
+    "description": "Rounds variance percent with banker's rounding instead of half-up."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Accepts money with more than two decimal places instead of rejecting it."
+  }
+]

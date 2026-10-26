@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "boundary",
+    "rule": "6",
+    "description": "Requires the date difference to be strictly inside the tolerance instead of allowing the boundary day."
+  },
+  {
+    "id": "m2",
+    "kind": "tie_break",
+    "rule": "6",
+    "description": "Orders phase-1 candidates by book id instead of smallest date difference."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Does not reject duplicate ids within a side."
+  }
+]

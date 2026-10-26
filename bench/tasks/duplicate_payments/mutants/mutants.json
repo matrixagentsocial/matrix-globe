@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "5",
+    "description": "Drops at most one trailing legal-form token instead of repeating until none remains."
+  },
+  {
+    "id": "m2",
+    "kind": "tie_break",
+    "rule": "11",
+    "description": "Sorts payment ids inside a group by id before date."
+  },
+  {
+    "id": "m3",
+    "kind": "boundary",
+    "rule": "4",
+    "description": "Allows negative window lengths instead of rejecting them."
+  }
+]

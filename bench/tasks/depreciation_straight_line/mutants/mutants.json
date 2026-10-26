@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "rounding_step",
+    "rule": "4",
+    "description": "Rounds the full annual amount to cents before applying the first-year fraction."
+  },
+  {
+    "id": "m2",
+    "kind": "boundary",
+    "rule": "2",
+    "description": "Allows life spans above 50 years."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Accepts bool for the integer schedule parameters."
+  }
+]

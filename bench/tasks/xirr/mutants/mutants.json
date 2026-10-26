@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "2",
+    "description": "Keeps only the first cashflow when several share the same date instead of summing them."
+  },
+  {
+    "id": "m2",
+    "kind": "boundary",
+    "rule": "7",
+    "description": "Allows a rate of exactly -100 percent instead of requiring it to be above -100."
+  },
+  {
+    "id": "m3",
+    "kind": "rounding_step",
+    "rule": "10",
+    "description": "Quantizes the XIRR result to cents instead of six decimal places."
+  }
+]

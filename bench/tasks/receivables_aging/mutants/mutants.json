@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "boundary",
+    "rule": "2",
+    "description": "Puts day 90 into the 90+ bucket instead of 61-90."
+  },
+  {
+    "id": "m2",
+    "kind": "missing_validation",
+    "rule": "5",
+    "description": "Accepts float amounts by converting them through str instead of raising ValueError."
+  },
+  {
+    "id": "m3",
+    "kind": "boundary",
+    "rule": "2",
+    "description": "Puts day 60 into the 61-90 bucket instead of 31-60."
+  }
+]

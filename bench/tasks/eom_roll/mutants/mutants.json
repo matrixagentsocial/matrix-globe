@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "boundary",
+    "rule": "7",
+    "description": "Allows schedule counts above 120."
+  },
+  {
+    "id": "m2",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Accepts bool for the month and count parameters."
+  },
+  {
+    "id": "m3",
+    "kind": "boundary",
+    "rule": "2",
+    "description": "Rejects month shifts below -1200 instead of the allowed -2400 bound."
+  }
+]

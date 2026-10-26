@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "rounding_mode",
+    "rule": "3",
+    "description": "Uses floor instead of toward-zero truncation for the DOWN mode."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "2",
+    "description": "Treats currency codes case-sensitively so lowercase codes are rejected."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "3",
+    "description": "Does not validate the rounding mode and raises KeyError for unknown modes."
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "4",
+    "description": "Formats check digits without zero padding to two digits."
+  },
+  {
+    "id": "m2",
+    "kind": "boundary",
+    "rule": "2",
+    "description": "Allows bases of 22 characters instead of the 21-character maximum."
+  },
+  {
+    "id": "m3",
+    "kind": "other",
+    "rule": "1",
+    "description": "Also strips hyphens when normalizing, so hyphenated bases are accepted."
+  }
+]

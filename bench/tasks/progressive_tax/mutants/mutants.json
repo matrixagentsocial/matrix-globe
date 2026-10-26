@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "2",
+    "description": "Taxes income above 300000 at 46 percent instead of 47 percent."
+  },
+  {
+    "id": "m2",
+    "kind": "rounding_step",
+    "rule": "5",
+    "description": "Leaves each bracket tax unrounded instead of quantizing it to cents."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "1",
+    "description": "Rounds incomes with more than two decimal places instead of rejecting them."
+  }
+]

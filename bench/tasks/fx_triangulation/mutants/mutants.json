@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "rounding_step",
+    "rule": "8",
+    "description": "Rounds the intermediate euro amount to cents before applying the destination rate."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "8",
+    "description": "Uses two minor units for the yen instead of zero."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "1",
+    "description": "Accepts float rate values by converting them through Decimal(str(value))."
+  }
+]

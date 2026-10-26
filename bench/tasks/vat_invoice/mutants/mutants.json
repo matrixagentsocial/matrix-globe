@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "rounding_step",
+    "rule": "8",
+    "description": "Does not round each per-line net to cents before summing the group."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "6",
+    "description": "Groups rates by their raw spelling instead of the canonical rate string."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Accepts lowercase mode spellings instead of requiring the exact mode strings."
+  }
+]

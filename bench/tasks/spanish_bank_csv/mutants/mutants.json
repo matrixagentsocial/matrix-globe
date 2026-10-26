@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "3",
+    "description": "Does not strip a leading byte-order mark before checking the header."
+  },
+  {
+    "id": "m2",
+    "kind": "missing_validation",
+    "rule": "8",
+    "description": "Accepts amounts with three decimal digits instead of at most two."
+  },
+  {
+    "id": "m3",
+    "kind": "other",
+    "rule": "13",
+    "description": "Reports the earliest and latest dates in the summary instead of the first and last rows in file order."
+  }
+]

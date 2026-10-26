@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "5",
+    "description": "Ignores holidays on the submitted day itself when deciding same-day settlement."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "5",
+    "description": "The next-business-day search skips weekends but not holidays."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Treats a single holiday string as a one-item holiday collection."
+  }
+]

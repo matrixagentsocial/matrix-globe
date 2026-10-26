@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "2",
+    "description": "Matches frequency names case-sensitively after stripping."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "2",
+    "description": "Uses 364 periods per year for daily compounding instead of 365."
+  },
+  {
+    "id": "m3",
+    "kind": "boundary",
+    "rule": "1",
+    "description": "Allows a percent of exactly -100 instead of requiring it to be greater than -100."
+  }
+]

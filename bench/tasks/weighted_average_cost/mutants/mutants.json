@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "rounding_step",
+    "rule": "6",
+    "description": "Keeps the exact unrounded purchase value in the inventory instead of cent-quantized value."
+  },
+  {
+    "id": "m2",
+    "kind": "boundary",
+    "rule": "8",
+    "description": "Rejects selling the entire quantity on hand as if it exceeded stock."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "3",
+    "description": "Accepts bool as a movement quantity."
+  }
+]

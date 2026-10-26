@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "5",
+    "description": "Treats a single dot followed by three digits as a thousands separator instead of a decimal point."
+  },
+  {
+    "id": "m2",
+    "kind": "missing_validation",
+    "rule": "6",
+    "description": "Joins thousands groups without validating their lengths."
+  },
+  {
+    "id": "m3",
+    "kind": "convention",
+    "rule": "4",
+    "description": "Does not treat non-breaking spaces as interior thousands separators."
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "boundary",
+    "rule": "3",
+    "description": "Rejects a factor of exactly 3 instead of allowing the inclusive upper bound."
+  },
+  {
+    "id": "m2",
+    "kind": "other",
+    "rule": "7",
+    "description": "Does not cap a non-final year at the remaining depreciable base."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "1",
+    "description": "Allows salvage equal to cost instead of requiring cost above salvage."
+  }
+]

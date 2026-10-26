@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "missing_validation",
+    "rule": "1",
+    "description": "Accepts totals with more than two decimal places instead of raising ValueError."
+  },
+  {
+    "id": "m2",
+    "kind": "missing_validation",
+    "rule": "1",
+    "description": "Does not reject non-finite totals such as NaN or Infinity."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Accepts bool as the installment count."
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "missing_validation",
+    "rule": "3",
+    "description": "Accepts bool as the month count."
+  },
+  {
+    "id": "m2",
+    "kind": "missing_validation",
+    "rule": "3",
+    "description": "Does not enforce the 360-month upper bound."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "1",
+    "description": "Rounds principals with more than two decimal places instead of rejecting them."
+  }
+]

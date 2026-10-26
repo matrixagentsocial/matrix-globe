@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "6",
+    "description": "Does not merge adjacent segments that have the same monthly price."
+  },
+  {
+    "id": "m2",
+    "kind": "rounding_step",
+    "rule": "8",
+    "description": "Leaves segment amounts unrounded and only the total is cent-quantized through the segment sum."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "4",
+    "description": "Does not reject duplicate effective dates."
+  }
+]

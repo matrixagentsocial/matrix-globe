@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "4",
+    "description": "Maps the NIE Y prefix to 0 instead of 1 when computing the control letter."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "6",
+    "description": "Uses a shifted CIF control-letter table."
+  },
+  {
+    "id": "m3",
+    "kind": "convention",
+    "rule": "3",
+    "description": "Uses the wrong control letter for NIF numbers congruent to 0 mod 23."
+  }
+]

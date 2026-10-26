@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "missing_validation",
+    "rule": "5",
+    "description": "Accepts numeric amounts and balances instead of requiring strings."
+  },
+  {
+    "id": "m2",
+    "kind": "tie_break",
+    "rule": "7",
+    "description": "Leaves transactions with equal dates in input order instead of sorting by id."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "5",
+    "description": "Accepts amounts with more than two decimal places and rounds them."
+  }
+]

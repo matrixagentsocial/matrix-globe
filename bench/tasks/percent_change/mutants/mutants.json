@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "convention",
+    "rule": "2",
+    "description": "Divides by the signed old value instead of its absolute value."
+  },
+  {
+    "id": "m2",
+    "kind": "rounding_mode",
+    "rule": "3",
+    "description": "Rounds percent change with banker's rounding instead of half-up."
+  },
+  {
+    "id": "m3",
+    "kind": "rounding_step",
+    "rule": "7",
+    "description": "Rounds the applied percent to cents of a percent before applying it."
+  }
+]

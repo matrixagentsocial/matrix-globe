@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "tie_break",
+    "rule": "6",
+    "description": "Breaks remainder ties by lower index only, ignoring the larger-weight tie-break."
+  },
+  {
+    "id": "m2",
+    "kind": "other",
+    "rule": "6",
+    "description": "Gives remainder cents to the smallest fractional remainders first."
+  },
+  {
+    "id": "m3",
+    "kind": "missing_validation",
+    "rule": "2",
+    "description": "Accepts float weights by converting them through str."
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "m1",
+    "kind": "other",
+    "rule": "7",
+    "description": "Ignores the reference when comparing a repeated key with the first occurrence."
+  },
+  {
+    "id": "m2",
+    "kind": "convention",
+    "rule": "5",
+    "description": "Compares accounts case-insensitively when deciding duplicates and conflicts."
+  },
+  {
+    "id": "m3",
+    "kind": "boundary",
+    "rule": "4",
+    "description": "Allows zero amounts instead of requiring amounts above zero."
+  }
+]
