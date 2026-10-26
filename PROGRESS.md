@@ -102,6 +102,7 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 | Session | Model | Input (cached) | Output (reasoning) | Calls | USD |
 |---|---|---|---|---|---|
 | M0 (2026-10-26) | muse-wonder-1.0, effort high | 2,259,393 (2,175,592) | 26,362 (9,025) | 35 | ~1.30 |
+| M1 (2026-10-26) | muse-wonder-1.0, effort high | 4,688,210 (4,565,440) | 40,709 (6,509) | 49 | ~2.22 |
 
 ## Review notes (Claude Code, supervisor)
 
@@ -109,6 +110,10 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 - Fixed: the ledger default path is now anchored to the repo root instead of the cwd.
 - For M2: pydantic `model_json_schema()` does not emit `additionalProperties: false`; strict json_schema needs it on every object, so build the reviewer schema explicitly (or post-process) and test it live once.
 - For M6: parallel Actions jobs each see only their own ledger; the total cap must be enforced per job budget (split `MAX_USD_TOTAL` across jobs) and the ledgers merged into `results/`.
+
+- M1 reviewed: 43 tests pass, validate_tasks green; spot-checked business_days hidden tests by hand (weekdays, month-end MF cases) and they are right; the local sandbox env drops every *_KEY.
+- M1 risk: the 6 dev tasks are too easy (single-shot 6/6). M3 must make tasks harder through interacting rules, not hidden ones.
+- Repo published 2026-10-26: https://github.com/matrixagentsocial/matrix-globe (public). Commit emails rewritten to the GitHub noreply address before the first push. The gh token lacks the `workflow` scope, so `.github/workflows/*` cannot be pushed until the owner runs `gh auth refresh -h github.com -s workflow`.
 
 ## Next step
 
