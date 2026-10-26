@@ -8,6 +8,7 @@ Running log for Matrix Globe. Updated every session.
 |---|---|
 | M0 — Gate + skeleton | done (Official Rules step pending; rules not yet published, tracked separately) |
 | M1 — Sandbox + tasks + builder | done |
+| M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
 
 ## Verified facts (M0)
 
@@ -90,12 +91,115 @@ each row as it completes). Unit tests: 43 passed
 (`.venv\Scripts\python -m pytest -q`), including mocked-LLM tests
 for builder/run_bench and a validate_tasks fixture.
 
+## M2 results (2026-10-26)
+
+- Reviewer (`proof/roles/reviewer.py` + `prompts/reviewer.md`): strict
+  explicit `json_schema` dict (every object `additionalProperties: false`,
+  all properties required, verdict/severity enums, max 5 claims), role
+  `reviewer` (Wonder, effort high, fresh context per round). Prompt: only
+  report defects you can make executable; a claim whose test passes is
+  discarded; quote exact spec sentences in `spec_reference`.
+- Proof rule (`proof/proofrule.py`): each claim's test runs in its own
+  file in the sandbox -> PROVEN / UNPROVEN / INVALID (collection, syntax,
+  bad import, timeout); bench-only validity vs `reference.py` -> VALID /
+  HALLUCINATED.
+- Reviser (`proof/roles/reviser.py`, Spark) -> `{code, addressed[],
+  contested[]}`; self-refine (`proof/roles/self_refine.py`) for C and the
+  free-form reviewer (`prompts/reviewer_freeform.md`, plain text, no
+  tests, no proof rule) for E.
+- Loop (`proof/loop.py`) `run_proof(task, mode)` for A-E exactly as in
+  the Decisions section (B = Wonder single shot, effort `max`). Guards:
+  `MAX_ROUNDS=2`, `MAX_USD_PER_RUN`, `MAX_LLM_CALLS_PER_RUN=8`, sandbox
+  timeout, 6 min wall clock; rollback to the best version on regression
+  (a `regression` event); a failed step is recorded and the loop
+  continues with the best version; final VERIFIED / PARTIAL / FAILED
+  from what actually passed; every event is in the bundle.
+- ProofBundle (`proof/bundle.py`, pydantic): canonical JSON
+  (sort_keys, separators `(",", ":")`, `ensure_ascii=False`, UTF-8) +
+  sha256. Fixture `tests/fixtures/bundle_fixture.json` + expected sha256
+  `a1c65de8ac74af10e5893baf3f9ffb512a89516fc0954d590d588a828cbce7e3`
+  for the web viewer to test against later.
+- `bench/run_bench.py` supports `--cond A|B|C|D|E` (plus `--task <id>`),
+  writes bundles to `results/bundles/` and per-run JSONL with the M1
+  fields plus, for D/E, claims proposed/proven/unproven/invalid/valid/
+  hallucinated, rounds and regressions, and `reviewer_usd` separately.
+- Unit tests: 72 passed (`.venv\Scripts\python -m pytest -q`), with a
+  mocked LLM covering proof-rule classification (incl. hallucinated),
+  loop guards (round, call, $ and wall-clock caps), rollback on
+  regression, recovery after a failed step, bundle hash stability and
+  strict-schema checks.
+
+### Demo (`scripts/review_demo.py`, live)
+
+Naive `split_installments` (rounds each installment independently,
+100.00/3 -> 99.99; public 3/5) reviewed by the real Wonder reviewer:
+
+```
+C1: PROVEN / VALID
+C2: PROVEN / VALID
+C3: PROVEN / VALID
+C4: PROVEN / VALID
+Verify revision: public 5/5, proven 4/4
+Final status: VERIFIED
+Demo LLM cost this run: $0.1083
+SUMMARY proven=4 valid=4 status=VERIFIED
+```
+
+### Condition D live (6 dev tasks, 1 seed, real models)
+
+Results in `results/runs/condD_dev_20261026T212537Z.jsonl`, bundles in
+`results/bundles/bench-D-*-s0.json`:
+
+| task | status | public | hidden | all_pass | usd | reviewer usd | claims (prop/prov/valid/hall) | rounds |
+|---|---|---|---|---|---|---|---|---|
+| business_days | VERIFIED | 5/5 | 19/19 | yes | $0.0472 | $0.0464 | 0/0/0/0 | 1 |
+| currency_rounding | VERIFIED | 5/5 | 19/19 | yes | $0.1608 | $0.1592 | 1/1/0/1 | 2 |
+| iban_validation | VERIFIED | 5/5 | 19/19 | yes | $0.0663 | $0.0657 | 0/0/0/0 | 1 |
+| number_parsing | VERIFIED | 5/5 | 21/21 | yes | $0.3382 | $0.3359 | 0/0/0/0 | 0 |
+| receivables_aging | VERIFIED | 5/5 | 19/19 | yes | $0.5106 | $0.5084 | 3/3/2/1 | 2 |
+| split_installments | PARTIAL | 5/5 | 17/17 | yes | $0.3620 | $0.3596 | 1/1/0/1 | 2 |
+
+Condition D total: $1.4850 (reviewer $1.4752). All 6 tasks pass public
++ hidden; 5 VERIFIED, 1 PARTIAL (split_installments: the single proven
+claim was HALLUCINATED and its test still fails on the revision, so the
+status honestly stays PARTIAL even though hidden tests pass).
+
+Surprises:
+
+- Wonder reviewer cost dominates everything (builder+reviser are
+  ~$0.001-0.01 per run on the contributor model). Two tasks cost far
+  more than expected: receivables_aging $0.5106 exceeded the $0.40
+  single-run stop threshold (the bench guard stopped the batch after
+  writing its row; split_installments was then run alone with `--task`),
+  and split_installments cost $0.3620 for one hallucinated claim.
+- number_parsing: the reviewer call truncated at 16,384 `max_tokens`
+  (reasoning ate the budget, empty content). The loop recorded a
+  `step_failed` event, continued with the builder code and finished
+  VERIFIED with `rounds=0`. Reviewer `max_tokens` is now 32,768, as
+  the builder already was; not re-run live (budget, see below).
+- Hallucinated claims are real: 3 of 5 proven claims across D were
+  HALLUCINATED (the reference fails their tests too). The reviser still
+  "addressed" them; in split_installments that left the claim test
+  failing, hence PARTIAL. Reviewer precision on this tiny sample:
+  2 valid / 5 proven.
+- Session live spend was $1.5933, i.e. $0.093 over the $1.50 session
+  cap: the per-run costs above were only knowable after each call, and
+  the $0.40 guard stopped the batch at receivables_aging, but running
+  split_installments afterwards pushed the total over. No further live
+  calls were made after that point.
+- Condition B (Wonder, effort `max`, one dev task) was therefore NOT
+  run live: any further live call would have exceeded the session cap
+  knowingly. Its cost is still unmeasured; run it first in the next
+  session (expected order $0.10-0.30 based on Wonder output pricing).
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
 smoke $0.004831 (M0) + condition A $0.006115 (6 tasks) + $0.003408
 for the aborted first condition A attempt above. No single builder
 run exceeded $0.002 (stop threshold was $0.05).
+
+After M2 the product ledger is $1.607672: M2 live spend was $1.593318 (demo $0.1083 + condition D $1.4850 on 6 dev tasks). That is $0.093 over the $1.50 session cap set for M2 (see the M2 surprises above); one single run (receivables_aging, $0.5106) also exceeded the $0.40 single-run stop threshold and triggered the bench guard. Condition B was not run live for this reason.
 
 Muse Code build sessions (outside the product ledger; budget $25), from `muse exec --json` `run.usage`:
 
@@ -117,6 +221,4 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-M2 — Proof loop (PLAN.md section 6, row D3): reviewer schema + proof
-rule + validity check, reviser, loop guards/rollback/recovery, bundle
-+ hash, unit tests with mocked LLM.
+M3 — FinCode-30 complete (PLAN.md section 6, row D4): 30 tasks validated, pilot A & D on the 10 dev tasks, calibrate difficulty (the 6 current dev tasks are too easy), tune prompts on dev only, freeze prompts (tag prompts-v1). First, in a fresh session with budget, run one live condition B (Wonder, effort max) on one dev task to measure its cost, which M2 could not do within its session cap.
