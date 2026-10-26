@@ -18,7 +18,8 @@ from typing import Any
 
 from proof.config import Settings, load_settings
 
-DEFAULT_LEDGER_PATH = Path("state/ledger.jsonl")
+# Anchored to the repo root so the ledger does not depend on the cwd.
+DEFAULT_LEDGER_PATH = Path(__file__).resolve().parents[1] / "state" / "ledger.jsonl"
 
 
 class HardCapExceeded(RuntimeError):
