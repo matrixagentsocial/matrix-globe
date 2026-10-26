@@ -174,7 +174,10 @@ def run_condition(
                 bundles_dir.mkdir(parents=True, exist_ok=True)
                 p = bundles_dir / f"{run_id}.json"
                 p.write_text(bundle.canonical_json(), encoding="utf-8")
-                bundle_path = str(p)
+                try:
+                    bundle_path = str(p.resolve().relative_to(REPO_ROOT))
+                except Exception:
+                    bundle_path = str(p)
                 bundle_sha = bundle.sha256()
             counts = _claim_counts(bundle)
             regressions = sum(1 for e in bundle.events if e.type == "regression")
@@ -236,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=6)
     parser.add_argument("--seeds", type=int, default=1)
     parser.add_argument("--sandbox", default="local", choices=["local", "docker"])
+    parser.add_argument("--task", default=None, help="only run the task with this id")
     parser.add_argument("--tasks", default=str(REPO_ROOT / "bench" / "tasks"))
     parser.add_argument("--out", default=None, help="output JSONL path")
     parser.add_argument("--bundles-dir", default=None, help="bundles output dir")
@@ -253,6 +257,8 @@ def main(argv: list[str] | None = None) -> int:
         sandbox = LocalSandbox()
 
     tasks = discover_tasks(args.tasks, split=args.split)
+    if args.task:
+        tasks = [t for t in tasks if t.id == args.task]
     if args.limit is not None and args.limit >= 0:
         tasks = tasks[: args.limit]
     if not tasks:

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 PROMPT_PATH = Path(__file__).parent / "prompts" / "reviewer.md"
 FREEFORM_PROMPT_PATH = Path(__file__).parent / "prompts" / "reviewer_freeform.md"
 
-REVIEWER_MAX_TOKENS = 16384
+REVIEWER_MAX_TOKENS = 32768
 
 CLAIM_SCHEMA: dict[str, Any] = {
     "type": "object",
