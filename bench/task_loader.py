@@ -35,6 +35,34 @@ def load_task(task_dir: str | Path) -> Task:
     )
 
 
+MUTANT_KINDS = (
+    "rounding_mode", "rounding_step", "boundary", "tie_break",
+    "missing_validation", "convention", "float_money", "timezone", "other",
+)
+
+
+def load_mutants(task: Task) -> list[dict]:
+    """Return mutant metadata for *task* ([] when no mutants dir)."""
+    meta_path = task.dir / "mutants" / "mutants.json"
+    if not meta_path.exists():
+        return []
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    return list(data)
+
+
+def load_targets(task: Task, targets: str = "all") -> list[tuple[str, str]]:
+    """Return [(target_id, code)] for mutants/clean/all selection."""
+    out: list[tuple[str, str]] = []
+    if targets in ("mutants", "all"):
+        for entry in load_mutants(task):
+            mid = str(entry["id"])
+            code = (task.dir / "mutants" / f"{mid}.py").read_text(encoding="utf-8")
+            out.append((mid, code))
+    if targets in ("clean", "all"):
+        out.append(("clean", task.reference))
+    return out
+
+
 def discover_tasks(tasks_root: str | Path, split: str | None = None) -> list[Task]:
     root = Path(tasks_root)
     tasks: list[Task] = []

@@ -170,6 +170,66 @@ def non_stdlib_imports(task: Task) -> list[str]:
     return bad
 
 
+ALLOWED_MUTANT_KINDS = {
+    "rounding_mode", "rounding_step", "boundary", "tie_break",
+    "missing_validation", "convention", "float_money", "timezone", "other",
+}
+
+
+def validate_mutants(task: Task, sandbox) -> tuple[bool, str]:
+    """Each mutant: differs from reference, passes public, fails >=1 hidden."""
+    import json as _json
+
+    mutants_dir = task.dir / "mutants"
+    meta_path = mutants_dir / "mutants.json"
+    if not meta_path.exists():
+        return False, "mutants/mutants.json missing"
+    try:
+        entries = _json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"mutants.json unreadable: {exc}"
+    if not isinstance(entries, list) or len(entries) != 3:
+        return False, f"mutants.json must list exactly 3 mutants, got {entries!r}"
+    problems: list[str] = []
+    seen_ids: set[str] = set()
+    sources: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            problems.append(f"mutant entry not an object: {entry!r}")
+            continue
+        mid = str(entry.get("id", ""))
+        if mid in seen_ids or mid not in ("m1", "m2", "m3"):
+            problems.append(f"bad or duplicate mutant id {mid!r}")
+        seen_ids.add(mid)
+        if str(entry.get("kind", "")) not in ALLOWED_MUTANT_KINDS:
+            problems.append(f"{mid}: kind {entry.get('kind')!r} not allowed")
+        if not str(entry.get("rule", "")).strip():
+            problems.append(f"{mid}: rule empty")
+        if not str(entry.get("description", "")).strip():
+            problems.append(f"{mid}: description empty")
+        mpath = mutants_dir / f"{mid}.py"
+        if not mpath.exists():
+            problems.append(f"{mid}: file missing")
+            continue
+        source = mpath.read_text(encoding="utf-8")
+        sources.append(source)
+        if source == task.reference:
+            problems.append(f"{mid}: identical to reference")
+            continue
+        pub = run_pytest(sandbox, source, {"public_test.py": task.public_test})
+        if not pub.all_passed:
+            problems.append(f"{mid}: fails public tests ({pub.passed}/{pub.total})")
+        hid = run_pytest(sandbox, source, {"hidden_test.py": task.hidden_test})
+        failed = sum(1 for t in hid.tests if t.outcome in ("failed", "error"))
+        if failed < 1 and not hid.collection_errors:
+            problems.append(f"{mid}: passes all hidden tests")
+        if hid.collection_errors:
+            problems.append(f"{mid}: hidden run has collection errors")
+    if len(set(sources)) != len(sources):
+        problems.append("mutants are not pairwise distinct")
+    return (not problems), "; ".join(problems)
+
+
 @dataclass
 class TaskValidation:
     task_id: str
@@ -178,6 +238,7 @@ class TaskValidation:
     hidden_not_subset: bool
     hidden_names_unique: bool = True
     stdlib_only: bool = True
+    mutants_ok: bool = True
     detail: str = ""
 
     @property
@@ -188,10 +249,12 @@ class TaskValidation:
             and self.hidden_not_subset
             and self.hidden_names_unique
             and self.stdlib_only
+            and self.mutants_ok
         )
 
 
-def validate_task(task: Task, sandbox: LocalSandbox | None = None) -> TaskValidation:
+def validate_task(task: Task, sandbox: LocalSandbox | None = None,
+                  require_mutants: bool = False) -> TaskValidation:
     sandbox = sandbox or LocalSandbox()
     detail_parts: list[str] = []
 
@@ -235,6 +298,12 @@ def validate_task(task: Task, sandbox: LocalSandbox | None = None) -> TaskValida
     if not stdlib_only:
         detail_parts.append(f"non-stdlib imports: {', '.join(bad_imports)}")
 
+    mutants_ok = True
+    if require_mutants or (task.dir / "mutants").exists():
+        mutants_ok, mutant_detail = validate_mutants(task, sandbox)
+        if not mutants_ok:
+            detail_parts.append(f"mutants: {mutant_detail}")
+
     return TaskValidation(
         task_id=task.id,
         reference_ok=reference_ok,
@@ -242,13 +311,15 @@ def validate_task(task: Task, sandbox: LocalSandbox | None = None) -> TaskValida
         hidden_not_subset=hidden_not_subset,
         hidden_names_unique=hidden_names_unique,
         stdlib_only=stdlib_only,
+        mutants_ok=mutants_ok,
         detail="; ".join(detail_parts),
     )
 
 
-def validate_all(tasks_root: str | Path) -> list[TaskValidation]:
+def validate_all(tasks_root: str | Path, require_mutants: bool = True) -> list[TaskValidation]:
     sandbox = LocalSandbox()
-    return [validate_task(task, sandbox) for task in discover_tasks(tasks_root)]
+    return [validate_task(task, sandbox, require_mutants=require_mutants)
+            for task in discover_tasks(tasks_root)]
 
 
 def format_table(results: list[TaskValidation]) -> str:
@@ -257,13 +328,14 @@ def format_table(results: list[TaskValidation]) -> str:
 
     lines = [
         f"{'task':<26} {'reference':<10} {'naive fails':<12} {'hidden not subset':<18} "
-        f"{'unique names':<13} {'stdlib only':<12} result",
+        f"{'unique names':<13} {'stdlib only':<12} {'mutants':<9} result",
     ]
     for r in results:
         lines.append(
             f"{r.task_id:<26} {mark(r.reference_ok):<10} "
             f"{mark(r.naive_fails_hidden):<12} {mark(r.hidden_not_subset):<18} "
             f"{mark(r.hidden_names_unique):<13} {mark(r.stdlib_only):<12} "
+            f"{mark(r.mutants_ok):<9} "
             f"{'ok' if r.ok else 'FAIL'}"
             + (f"  ({r.detail})" if r.detail else "")
         )

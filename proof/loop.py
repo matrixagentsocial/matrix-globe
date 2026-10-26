@@ -92,7 +92,8 @@ class ProofLoop:
                  max_wall_s: float = MAX_WALL_CLOCK_S,
                  sandbox_timeout_s: float = SANDBOX_TIMEOUT_S,
                  clock: Callable[[], float] = time.monotonic,
-                 initial_code: str | None = None) -> None:
+                 initial_code: str | None = None,
+                 target_id: str = "") -> None:
         self.task = task
         self.mode = normalise_mode(mode)
         self.client_raw = client
@@ -120,6 +121,7 @@ class ProofLoop:
         self.clock = clock
         self.started = clock()
         self.initial_code = initial_code
+        self.target_id = str(target_id or "")
         self.events: list[BundleEvent] = []
         self.rounds: list[BundleRound] = []
         self.all_proven: list[Any] = []  # ClaimProof objects
@@ -476,6 +478,7 @@ class ProofLoop:
                 reviewer=ModelRef(model=str(reviewer_model), effort=str(reviewer_effort)),
             ),
             mode=self.mode,
+            target=self.target_id,
             rounds=self.rounds,
             events=self.events,
             finalCodeSha256=sha256_text(final_code) if final_code else "",

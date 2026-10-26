@@ -110,6 +110,7 @@ class ProofBundle(BaseModel):
     task: TaskRef
     models: ModelsRef
     mode: str = "D"
+    target: str = ""
     rounds: list[BundleRound] = Field(default_factory=list)
     events: list[BundleEvent] = Field(default_factory=list)
     finalCodeSha256: str = ""

@@ -1,10 +1,9 @@
-"""Pilot report (M3 part 2): summarise pilot run JSONL files.
+"""Pilot v2 report: summarise review-benchmark JSONL rows.
 
-Usage: .venv\\Scripts\\python bench/pilot_report.py results/pilot/condA*.jsonl ...
-Prints per variant: hidden all-pass rate, mean hidden-test pass rate,
-USD per run, USD per fully solved task, reviewer claims
-proposed/PROVEN/UNPROVEN/INVALID/VALID/UNCONFIRMED, reviewer precision
-(VALID/PROVEN), regressions.
+Usage: .venv\\Scripts\\python bench/pilot_report.py results/pilot/v2/condD.jsonl [...]
+Writes markdown to stdout (redirect to summary.md). Per condition:
+fixed rate on mutants, damage rate on clean, regressions, claim
+precision (VALID/PROVEN), $/target.
 """
 from __future__ import annotations
 
@@ -26,50 +25,72 @@ def load_rows(paths: list[str]) -> dict[str, list[dict[str, Any]]]:
 
 
 def summarise(label: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
-    n = len(rows)
-    solved = sum(1 for r in rows if r.get("all_pass"))
+    mutants = [r for r in rows if r.get("target_id") in ("m1", "m2", "m3")]
+    clean = [r for r in rows if r.get("target_id") == "clean"]
+    regen = [r for r in rows if r.get("target_id") == "regen"]
     total_usd = sum(float(r.get("usd", 0.0)) for r in rows)
-    mean_hidden = (sum(r["hidden_passed"] / r["hidden_total"] for r in rows if r.get("hidden_total")) / n) if n else 0.0
+
+    def _fixed(r: dict[str, Any]) -> bool:
+        if "fixed" in r:
+            return bool(r["fixed"])
+        return bool(r.get("all_pass"))
+
+    n_mut = len(mutants)
+    fixed_mut = sum(1 for r in mutants if _fixed(r))
+    damaged_clean = sum(1 for r in clean if r.get("damaged", (not _fixed(r))))
+    proven = sum(int(r.get("claims_proven", 0)) for r in rows)
+    valid = sum(int(r.get("claims_valid", 0)) for r in rows)
     return {
-        "variant": label, "n": n, "solved": solved,
-        "all_pass_rate": solved / n if n else 0.0,
-        "mean_hidden_rate": mean_hidden,
-        "total_usd": total_usd,
-        "usd_per_run": total_usd / n if n else 0.0,
-        "usd_per_solved": total_usd / solved if solved else None,
+        "variant": label, "n": len(rows),
+        "n_mutants": n_mut, "fixed_mutants": fixed_mut,
+        "fixed_rate": (fixed_mut / n_mut) if n_mut else None,
+        "n_clean": len(clean), "damaged_clean": damaged_clean,
+        "damage_rate": (damaged_clean / len(clean)) if clean else None,
+        "n_regen": len(regen), "regen_fixed": sum(1 for r in regen if _fixed(r)),
+        "regressions": sum(int(r.get("regressions", 0)) for r in rows),
         "claims_proposed": sum(int(r.get("claims_proposed", 0)) for r in rows),
-        "claims_proven": sum(int(r.get("claims_proven", 0)) for r in rows),
+        "claims_proven": proven,
         "claims_unproven": sum(int(r.get("claims_unproven", 0)) for r in rows),
         "claims_invalid": sum(int(r.get("claims_invalid", 0)) for r in rows),
-        "claims_valid": sum(int(r.get("claims_valid", 0)) for r in rows),
+        "claims_valid": valid,
         "claims_unconfirmed": sum(int(r.get("claims_unconfirmed", 0)) for r in rows),
-        "regressions": sum(int(r.get("regressions", 0)) for r in rows),
+        "precision": (valid / proven) if proven else None,
+        "total_usd": total_usd,
+        "usd_per_target": (total_usd / len(rows)) if rows else 0.0,
     }
 
 
+def _pct(v: float | None) -> str:
+    return "n/a" if v is None else f"{v:.0%}"
+
+
 def format_markdown(groups: dict[str, list[dict[str, Any]]]) -> str:
-    lines = ["# Pilot summary (dev split, 1 seed)", "",
-             "| variant | n | all-pass | mean hidden | USD/run | USD/solved | prop/PROV/UNPR/INV/VALID/UNCONF | precision | regressions |",
+    lines = ["# Pilot v2 summary (dev split, 1 seed)", "",
+             "| condition | targets | fixed on mutants | damage on clean | regressions | claims prop/prov/valid/unconf | precision | $/target | total $ |",
              "|---|---|---|---|---|---|---|---|---|"]
     for label, rows in groups.items():
         s = summarise(label, rows)
-        solved = f"${s['usd_per_solved']:.4f}" if s["usd_per_solved"] is not None else "n/a"
-        precision = f"{s['claims_valid'] / s['claims_proven']:.2f}" if s["claims_proven"] else "n/a"
+        fixed_s = f"{s['fixed_mutants']}/{s['n_mutants']} ({_pct(s['fixed_rate'])})" if s["n_mutants"] else (
+            f"regen {s['regen_fixed']}/{s['n_regen']}" if s["n_regen"] else "n/a")
+        damage_s = f"{s['damaged_clean']}/{s['n_clean']} ({_pct(s['damage_rate'])})" if s["n_clean"] else "n/a"
+        precision = f"{s['precision']:.2f}" if s["precision"] is not None else "n/a"
         lines.append(
-            f"| {label} | {s['n']} | {s['solved']}/{s['n']} ({s['all_pass_rate']:.0%}) | "
-            f"{s['mean_hidden_rate']:.1%} | ${s['usd_per_run']:.4f} | {solved} | "
-            f"{s['claims_proposed']}/{s['claims_proven']}/{s['claims_unproven']}/{s['claims_invalid']}/"
-            f"{s['claims_valid']}/{s['claims_unconfirmed']} | {precision} | {s['regressions']} |")
+            f"| {label} | {s['n']} | {fixed_s} | {damage_s} | {s['regressions']} | "
+            f"{s['claims_proposed']}/{s['claims_proven']}/{s['claims_valid']}/{s['claims_unconfirmed']} | "
+            f"{precision} | ${s['usd_per_target']:.4f} | ${s['total_usd']:.4f} |")
     lines.append("")
     for label, rows in groups.items():
         lines.append(f"## {label}")
         lines.append("")
-        lines.append("| task | public | hidden | all_pass | usd | reviewer usd | status |")
-        lines.append("|---|---|---|---|---|---|---|")
+        lines.append("| task | target | before | after | fixed | regressions | damaged | usd | reviewer usd | status |")
+        lines.append("|---|---|---|---|---|---|---|---|---|---|")
         for r in rows:
-            lines.append(f"| {r['task_id']} | {r['public_passed']}/{r['public_total']} | "
-                         f"{r['hidden_passed']}/{r['hidden_total']} | {r['all_pass']} | "
-                         f"${float(r.get('usd', 0)):.4f} | ${float(r.get('reviewer_usd', 0)):.4f} | {r.get('status', '')} |")
+            lines.append(
+                f"| {r['task_id']} | {r.get('target_id', '')} | "
+                f"{r.get('hidden_before_passed', '?')}/{r.get('hidden_before_total', '?')} | "
+                f"{r.get('hidden_after_passed', r.get('hidden_passed', '?'))}/{r.get('hidden_after_total', r.get('hidden_total', '?'))} | "
+                f"{r.get('fixed', r.get('all_pass'))} | {r.get('regressions', 0)} | {r.get('damaged', '')} | "
+                f"${float(r.get('usd', 0)):.4f} | ${float(r.get('reviewer_usd', 0)):.4f} | {r.get('status', '')} |")
         lines.append("")
     return "\n".join(lines)
 
@@ -79,8 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         print("usage: pilot_report.py <run.jsonl> [...]", file=sys.stderr)
         return 2
-    text = format_markdown(load_rows(args))
-    print(text)
+    print(format_markdown(load_rows(args)))
     return 0
 
 
