@@ -139,6 +139,24 @@ def _claim_counts(bundle: Any) -> dict[str, int]:
     return counts
 
 
+def _contested_breakdown(bundle: Any) -> dict[str, int]:
+    """UNCONFIRMED proven claims the reviser contested vs accepted."""
+    contested_ids: set[str] = set()
+    unconfirmed_ids: list[str] = []
+    for rnd in getattr(bundle, "rounds", []) or []:
+        for c in getattr(rnd, "contested", []) or []:
+            cid = c.get("claim_id") if isinstance(c, dict) else getattr(c, "claim_id", "")
+            if cid:
+                contested_ids.add(str(cid).lower())
+        for c in getattr(rnd, "claims", []) or []:
+            if str(getattr(c, "status", "")).upper() == "PROVEN" and \
+                    str(getattr(c, "validity", "") or "").upper() == "UNCONFIRMED":
+                unconfirmed_ids.append(str(getattr(c, "id", "")).lower())
+    contested = sum(1 for cid in unconfirmed_ids if cid in contested_ids)
+    return {"claims_unconfirmed_contested": contested,
+            "claims_unconfirmed_accepted": len(unconfirmed_ids) - contested}
+
+
 def _write_bundle(bundle: Any, bundles_dir: Path | None, run_id: str) -> tuple[str, str]:
     if bundles_dir is None:
         return "", bundle.sha256()
@@ -268,7 +286,7 @@ def run_review_bench(
                 hidden_before = run_pytest(sandbox, target_code, {"hidden_test.py": task.hidden_test})
                 before_passed = _passed_names(hidden_before)
                 if cond == "R":
-                    bundle = run_proof(task, "A", client=None, sandbox=sandbox, ledger=ledger,
+                    bundle = run_proof(task, "R", client=None, sandbox=sandbox, ledger=ledger,
                                        settings=eff_settings, run_id=run_id,
                                        sandbox_label=sandbox_label,
                                        initial_code=target_code, target_id=target_id)
@@ -314,6 +332,118 @@ def run_review_bench(
                     "status": bundle.status, "bundle": bundle_path,
                     "bundle_sha256": bundle_sha, "llm_calls": bundle.llmCalls,
                     "rounds": len(bundle.rounds), "run_id": run_id,
+                    **_contested_breakdown(bundle),
+                }
+                rows.append(row)
+                if on_row is not None:
+                    on_row(row)
+                if float(usd) > max_usd_per_single_run:
+                    raise SingleRunCostExceeded(
+                        f"run {run_id} cost ${float(usd):.4f} > ${max_usd_per_single_run:.2f}; stopping")
+    return rows
+
+
+
+def run_review_bench_prs(
+    prs: list[Any],
+    cond: str,
+    *,
+    client: Any = None,
+    sandbox: Any,
+    seeds: int = 1,
+    ledger: Any = None,
+    settings: Any = None,
+    bundles_dir: Path | None = None,
+    sandbox_label: str = "local",
+    tasks_root: str | Path = "bench/tasks",
+    reviewer_effort: str | None = None,
+    max_usd_per_single_run: float = 10.0,
+    on_row: Any = None,
+    run_suffix: str = "",
+) -> list[dict[str, Any]]:
+    """Review benchmark on PR packages: one row per (PR, target, seed).
+
+    B runs once per PR (target ``regen``); R makes no LLM calls.
+    """
+    from bench.prs import load_pr_targets
+    from proof.loop import run_proof
+    from proof.package import parse_package
+    from proof.pytest_runner import run_pytest_files
+
+    cond = str(cond).upper()
+    if cond not in ("R", "B", "C", "D", "E"):
+        raise ValueError(f"PR review condition must be R|B|C|D|E, got {cond!r}")
+    eff_settings = settings
+    if reviewer_effort and settings is not None:
+        try:
+            eff_settings = dc_replace(settings, effort_reviewer=reviewer_effort)
+        except Exception:
+            settings.effort_reviewer = reviewer_effort  # type: ignore[attr-defined]
+            eff_settings = settings
+    rows: list[dict[str, Any]] = []
+    for pr in prs:
+        if cond == "B":
+            target_list: list[tuple[str, dict[str, str]]] = [("regen", dict(pr.clean_modules))]
+        else:
+            target_list = load_pr_targets(pr, tasks_root, "all")
+        for target_id, target_modules in target_list:
+            for seed in range(seeds):
+                run_id = f"bench-{cond}-{pr.id}-{target_id}-s{seed}{run_suffix}"
+                started = time.monotonic()
+                hidden_before = run_pytest_files(sandbox, target_modules,
+                                                 {"hidden_test.py": pr.hidden_test})
+                before_passed = _passed_names(hidden_before)
+                common = dict(sandbox=sandbox, ledger=ledger, settings=eff_settings,
+                              run_id=run_id, sandbox_label=sandbox_label,
+                              target_id=target_id, reference_modules=dict(pr.clean_modules))
+                if cond == "R":
+                    bundle = run_proof(pr, "R", client=None,
+                                       initial_modules=target_modules, **common)
+                elif cond == "B":
+                    bundle = run_proof(pr, "B", client=client, **common)
+                else:
+                    bundle = run_proof(pr, cond, client=client,
+                                       initial_modules=target_modules, **common)
+                final_modules = (parse_package(bundle.finalCode or "", pr.module_names)
+                                 if bundle.finalCode else dict(target_modules))
+                if not final_modules:
+                    final_modules = dict(target_modules)
+                hidden_after = run_pytest_files(sandbox, final_modules,
+                                                {"hidden_test.py": pr.hidden_test})
+                after_passed = _passed_names(hidden_after)
+                duration = time.monotonic() - started
+                usd = cost_for_run(ledger, run_id) if ledger is not None else float(bundle.cost.usd)
+                reviewer_usd = (cost_for_run(ledger, run_id, roles=("reviewer", "freeform_reviewer"))
+                                if ledger is not None else float(bundle.cost.reviewerUsd))
+                regression_names = sorted(before_passed - after_passed)
+                fixed = bool(hidden_after.all_passed)
+                damaged = bool(target_id == "clean" and not fixed)
+                bundle_path, bundle_sha = _write_bundle(bundle, bundles_dir, run_id)
+                counts = _claim_counts(bundle)
+                mutated = next((tt["mutated_module"] for tt in pr.meta.get("targets", [])
+                                if tt["target_id"] == target_id), None)
+                row = {
+                    "task_id": pr.id, "pr_id": pr.id, "target_id": target_id,
+                    "condition": cond, "seed": seed,
+                    "tasks": list(pr.meta.get("tasks", [])),
+                    "mutated_module": mutated,
+                    "hidden_before_passed": hidden_before.passed,
+                    "hidden_before_total": hidden_before.total,
+                    "hidden_after_passed": hidden_after.passed,
+                    "hidden_after_total": hidden_after.total,
+                    "hidden_passed": hidden_after.passed, "hidden_total": hidden_after.total,
+                    "all_pass": fixed, "fixed": fixed,
+                    "regressions": len(regression_names),
+                    "regressions_detail": regression_names,
+                    "damaged": damaged,
+                    **counts,
+                    **_contested_breakdown(bundle),
+                    "usd": round(float(usd), 6),
+                    "reviewer_usd": round(float(reviewer_usd), 6),
+                    "duration": round(duration, 3),
+                    "status": bundle.status, "bundle": bundle_path,
+                    "bundle_sha256": bundle_sha, "llm_calls": bundle.llmCalls,
+                    "rounds": len(bundle.rounds), "run_id": run_id,
                 }
                 rows.append(row)
                 if on_row is not None:
@@ -348,7 +478,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run FinCode review benchmark")
     parser.add_argument("--cond", default="D", choices=["R", "B", "C", "D", "E", "A"])
     parser.add_argument("--split", default="dev", choices=["dev", "test"])
-    parser.add_argument("--targets", default="all", choices=["mutants", "clean", "all"])
+    parser.add_argument("--targets", default="all", choices=["mutants", "clean", "all", "prs"])
+    parser.add_argument("--prs", default=str(REPO_ROOT / "bench" / "prs"))
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--seeds", type=int, default=1)
     parser.add_argument("--sandbox", default="local", choices=["local", "docker"])
@@ -373,7 +504,18 @@ def main(argv: list[str] | None = None) -> int:
         tasks = [t for t in tasks if t.id == args.task]
     if args.limit is not None and args.limit >= 0:
         tasks = tasks[: args.limit]
-    if not tasks:
+    prs = None
+    if args.targets == "prs":
+        from bench.prs import discover_prs
+        prs = discover_prs(args.prs, split=args.split)
+        if args.task:
+            prs = [p for p in prs if p.id == args.task]
+        if args.limit is not None and args.limit >= 0:
+            prs = prs[: args.limit]
+        if not prs:
+            print("no PRs matched", file=sys.stderr)
+            return 1
+    elif not tasks:
         print("no tasks matched", file=sys.stderr)
         return 1
 
@@ -397,7 +539,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{row['task_id']} {row.get('target_id','')} {row['condition']} fixed={row.get('fixed')} usd=${row['usd']:.4f}", flush=True)
 
     try:
-        if args.cond == "A":
+        if prs is not None:
+            rows = run_review_bench_prs(prs, args.cond, client=client, sandbox=sandbox,
+                                        seeds=args.seeds, ledger=ledger, settings=settings,
+                                        bundles_dir=bundles_dir, sandbox_label=args.sandbox,
+                                        tasks_root=args.tasks,
+                                        reviewer_effort=args.reviewer_effort,
+                                        max_usd_per_single_run=args.max_usd_per_run,
+                                        on_row=_on_row, run_suffix=args.run_suffix)
+        elif args.cond == "A":
             rows = run_condition(tasks, "A", client=client, sandbox=sandbox, seeds=args.seeds,
                                  ledger=ledger, settings=settings, bundles_dir=bundles_dir,
                                  sandbox_label=args.sandbox, on_row=_on_row, run_suffix=args.run_suffix)

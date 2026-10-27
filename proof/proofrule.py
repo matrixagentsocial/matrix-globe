@@ -15,7 +15,7 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
-from proof.pytest_runner import run_pytest
+from proof.pytest_runner import run_pytest, run_pytest_files
 
 PROVEN = "PROVEN"
 UNPROVEN = "UNPROVEN"
@@ -130,3 +130,30 @@ def prove_claims(claims: list[Any], code: str, sandbox: Any, *, reference_code: 
     """Prove each claim independently (own file per claim)."""
     return [prove_claim(c, code, sandbox, reference_code=reference_code,
                         timeout_s=timeout_s, origin=origin) for c in claims]
+
+
+def prove_claim_modules(claim: Any, modules: dict[str, str], sandbox: Any, *,
+                        reference_modules: dict[str, str] | None = None,
+                        timeout_s: float = 10.0, origin: str = "bench") -> ClaimProof:
+    """Proof rule for a PR package: test runs against all modules."""
+    failing_test = _get(claim, "failing_test")
+    fname = test_filename(claim)
+    result = run_pytest_files(sandbox, modules, {fname: failing_test},
+                              timeout_s=timeout_s, origin=origin)
+    status = classify_run(result)
+    output = _summarise(result)
+    validity: str | None = None
+    if status == PROVEN and reference_modules is not None:
+        ref_result = run_pytest_files(sandbox, reference_modules, {fname: failing_test},
+                                      timeout_s=timeout_s, origin=origin)
+        validity = VALID if ref_result.all_passed else UNCONFIRMED
+        output += f"\n[bench validity vs reference: {validity}]"
+    return ClaimProof(claim=claim, status=status, validity=validity, output=output,
+                      passed_on_current=(status == UNPROVEN))
+
+
+def prove_claims_modules(claims: list[Any], modules: dict[str, str], sandbox: Any, *,
+                         reference_modules: dict[str, str] | None = None,
+                         timeout_s: float = 10.0, origin: str = "bench") -> list[ClaimProof]:
+    return [prove_claim_modules(c, modules, sandbox, reference_modules=reference_modules,
+                                timeout_s=timeout_s, origin=origin) for c in claims]

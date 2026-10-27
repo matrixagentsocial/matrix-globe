@@ -61,6 +61,105 @@ class Revision(BaseModel):
     contested: list[ContestedItem] = Field(default_factory=list)
 
 
+_MODULE_ITEM_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"name": {"type": "string"}, "code": {"type": "string"}},
+    "required": ["name", "code"],
+    "additionalProperties": False,
+}
+REVISER_MODULES_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "modules": {"type": "array", "items": _MODULE_ITEM_SCHEMA},
+        "addressed": {"type": "array", "items": _ADDRESSED_SCHEMA},
+        "contested": {"type": "array", "items": _CONTESTED_SCHEMA},
+    },
+    "required": ["modules", "addressed", "contested"],
+    "additionalProperties": False,
+}
+FREEFORM_MODULES_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "modules": {"type": "array", "items": _MODULE_ITEM_SCHEMA},
+        "addressed": {"type": "array", "items": {"type": "string"}},
+        "contested": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["modules", "addressed", "contested"],
+    "additionalProperties": False,
+}
+
+
+class ModuleRevision(BaseModel):
+    modules: dict[str, str]
+    addressed: list[AddressedItem] = Field(default_factory=list)
+    contested: list[ContestedItem] = Field(default_factory=list)
+
+
+def _modules_from(data: dict[str, Any], module_names: list[str]) -> dict[str, str]:
+    from proof.roles.builder import modules_from_result
+    return modules_from_result(data, module_names)
+
+
+def _package_text(modules: dict[str, str]) -> str:
+    from proof.package import format_package
+    return format_package(modules)
+
+
+def revise_code_modules(client: Any, spec: str, modules: dict[str, str],
+                        proven_claims: list[Any], *, run_id: str | None = None,
+                        model: str | None = None, effort: str | None = None,
+                        max_tokens: int = REVISER_MAX_TOKENS) -> ModuleRevision:
+    """Reviser for a PR package: may touch any module, returns all of them."""
+    template = PROMPT_PATH.read_text(encoding="utf-8")
+    prompt = (template.replace("{spec}", spec).replace("{code}", _package_text(modules))
+              .replace("{claims}", _claim_text(proven_claims)))
+    prompt += (
+        "\n\n## Package output\n\nThe code above is a package, not a single "
+        "`solution.py`. Return every module in `modules`, one item per file, using "
+        "exactly these names: " + ", ".join(f"`{n}`" for n in sorted(modules))
+        + ". Return the complete content of every module, changed or not.\n")
+    extra: dict[str, Any] = {}
+    if model is not None:
+        extra["model"] = model
+    if effort is not None:
+        extra["effort"] = effort
+    result = client.complete("reviser", [{"role": "user", "content": prompt}],
+                             schema=REVISER_MODULES_SCHEMA, run_id=run_id,
+                             max_tokens=max_tokens, metadata={"origin": "bench"}, **extra)
+    data = dict(result) if isinstance(result, dict) else result.model_dump()
+    rev = _coerce({"code": "package", "addressed": data.get("addressed", []),
+                   "contested": data.get("contested", [])})
+    return ModuleRevision(modules=_modules_from(data, sorted(modules)),
+                          addressed=rev.addressed, contested=rev.contested)
+
+
+def revise_from_freeform_modules(client: Any, spec: str, modules: dict[str, str],
+                                 feedback: str, *, run_id: str | None = None,
+                                 model: str | None = None, effort: str | None = None,
+                                 max_tokens: int = REVISER_MAX_TOKENS) -> ModuleRevision:
+    prompt = (
+        "You are the reviser for Matrix Globe. Fix the package below using the "
+        "reviewer's free-text feedback. Return every module in `modules`, one item "
+        "per file, using exactly these names: "
+        + ", ".join(f"`{n}`" for n in sorted(modules)) + ".\n\n"
+        f"## Task spec\n\n{spec}\n\n## Current package\n\n{_package_text(modules)}\n\n"
+        f"## Reviewer feedback (free text, unverified)\n\n{feedback}\n")
+    extra: dict[str, Any] = {}
+    if model is not None:
+        extra["model"] = model
+    if effort is not None:
+        extra["effort"] = effort
+    result = client.complete("reviser", [{"role": "user", "content": prompt}],
+                             schema=FREEFORM_MODULES_SCHEMA, run_id=run_id,
+                             max_tokens=max_tokens, metadata={"origin": "bench"}, **extra)
+    data = dict(result) if isinstance(result, dict) else result.model_dump()
+    rev = _coerce({"code": "package",
+                   "addressed": data.get("addressed", []),
+                   "contested": data.get("contested", [])}, freeform=True)
+    return ModuleRevision(modules=_modules_from(data, sorted(modules)),
+                          addressed=rev.addressed, contested=rev.contested)
+
+
 def _claim_text(claims: list[Any]) -> str:
     parts: list[str] = []
     for c in claims:

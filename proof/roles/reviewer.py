@@ -82,8 +82,15 @@ def _coerce_report(result: Any) -> ReviewReport:
 def review_code(client: Any, spec: str, code: str, public_results: str, *,
                 run_id: str | None = None, history: str = "",
                 model: str | None = None, effort: str | None = None,
+                module_names: list[str] | None = None,
                 max_tokens: int = REVIEWER_MAX_TOKENS) -> ReviewReport:
     prompt = build_reviewer_prompt(spec, code, public_results, history)
+    if module_names:
+        prompt += (
+            "\n\n## Package note\n\nThe code under review is a package of modules: "
+            + ", ".join(f"`{m}`" for m in module_names)
+            + ". In this package, each `failing_test` may import from those modules "
+              "(not from `solution`). Claims may touch any module.\n")
     extra: dict[str, Any] = {}
     if model is not None:
         extra["model"] = model
@@ -107,9 +114,15 @@ def build_freeform_prompt(spec: str, code: str, public_results: str, history: st
 def review_freeform(client: Any, spec: str, code: str, public_results: str, *,
                     run_id: str | None = None, history: str = "",
                     model: str | None = None, effort: str | None = None,
+                    module_names: list[str] | None = None,
                     max_tokens: int = REVIEWER_MAX_TOKENS) -> str:
     """Condition E: plain-text feedback, no schema, no tests, no proof rule."""
     prompt = build_freeform_prompt(spec, code, public_results, history)
+    if module_names:
+        prompt += (
+            "\n\n## Package note\n\nThe code under review is a package of modules: "
+            + ", ".join(f"`{m}`" for m in module_names)
+            + ". Feedback may concern any module.\n")
     extra: dict[str, Any] = {}
     if model is not None:
         extra["model"] = model

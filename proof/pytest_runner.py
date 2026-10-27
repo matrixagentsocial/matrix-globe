@@ -131,7 +131,20 @@ def run_pytest(
     The sandbox receives ``solution.py`` plus those files and runs
     pytest with a 10 s default timeout per run.
     """
-    files: dict[str, str] = {"solution.py": solution_code}
+    return run_pytest_files(sandbox, {"solution.py": solution_code}, test_files,
+                            timeout_s=timeout_s, origin=origin)
+
+
+def run_pytest_files(
+    sandbox: Sandbox,
+    code_files: dict[str, str],
+    test_files: dict[str, str],
+    timeout_s: float = PYTEST_TIMEOUT_S,
+    *,
+    origin: str = "bench",
+) -> PytestRunResult:
+    """Run *test_files* against arbitrary *code_files* (PR packages)."""
+    files: dict[str, str] = dict(code_files)
     files.update(test_files)
     test_names = sorted(test_files)
     cmd = [

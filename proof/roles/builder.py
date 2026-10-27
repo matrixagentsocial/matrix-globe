@@ -37,6 +37,55 @@ def build_prompt(spec: str) -> str:
 
 BUILDER_MAX_TOKENS = 32768
 
+_MODULE_ITEM_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"name": {"type": "string"}, "code": {"type": "string"}},
+    "required": ["name", "code"],
+    "additionalProperties": False,
+}
+MODULES_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"modules": {"type": "array", "items": _MODULE_ITEM_SCHEMA}},
+    "required": ["modules"],
+    "additionalProperties": False,
+}
+
+
+def modules_from_result(result: Any, module_names: list[str]) -> dict[str, str]:
+    """Coerce a {modules:[{name,code}]} result into a complete module dict."""
+    data = result if isinstance(result, dict) else result.model_dump()
+    items = data.get("modules") or []
+    out: dict[str, str] = {}
+    for item in items:
+        if isinstance(item, dict) and item.get("name") in module_names:
+            out[str(item["name"])] = str(item.get("code") or "")
+    missing = [n for n in module_names if not out.get(n, "").strip()]
+    if missing:
+        raise ValueError(f"model returned no usable code for modules: {missing}")
+    return {n: out[n] for n in module_names}
+
+
+def build_modules(client: Any, spec: str, module_names: list[str], *,
+                  run_id: str | None = None, max_tokens: int = BUILDER_MAX_TOKENS,
+                  model: str | None = None, effort: str | None = None) -> dict[str, str]:
+    """Condition B on a PR: regenerate every module from the spec."""
+    prompt = build_prompt(spec)
+    prompt += (
+        "\n\n## Package output\n\nReturn every module of the package in `modules`, "
+        "one item per file, using exactly these names: "
+        + ", ".join(f"`{n}`" for n in module_names)
+        + ". Each section of the spec that says `solution.py` means the module "
+          "named in that section's heading. Use only the stdlib.\n")
+    extra: dict[str, Any] = {}
+    if model is not None:
+        extra["model"] = model
+    if effort is not None:
+        extra["effort"] = effort
+    result = client.complete("builder", [{"role": "user", "content": prompt}],
+                             schema=MODULES_SCHEMA, run_id=run_id,
+                             max_tokens=max_tokens, metadata={"origin": "bench"}, **extra)
+    return modules_from_result(result, module_names)
+
 
 def build_solution(
     client: Any,
