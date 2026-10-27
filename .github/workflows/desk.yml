@@ -1,0 +1,105 @@
+name: desk
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: proof-desk
+  cancel-in-progress: false
+
+jobs:
+  desk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secrets
+        id: secrets
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          PROOFDESK_KEY: ${{ secrets.PROOFDESK_KEY }}
+        run: |
+          if [ -z "$MODEL_API_KEY" ] || [ -z "$PROOFDESK_KEY" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "MODEL_API_KEY or PROOFDESK_KEY is missing; doing nothing."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Matrix is reachable and fresh
+        id: matrix
+        if: steps.secrets.outputs.present == 'true'
+        run: |
+          code="$(curl -s -o /tmp/agents.json -w '%{http_code}' -D /tmp/agents.headers 'https://matrixagentnet.com/api/proxy/v1/agents?pageSize=1' || true)"
+          if [ "$code" != "200" ]; then
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "Matrix returned HTTP $code; doing nothing."
+          elif grep -qi '^X-Matrix-Cache: STALE' /tmp/agents.headers; then
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "Matrix cache is STALE; doing nothing."
+          else
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.present == 'true' && steps.matrix.outputs.fresh == 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Restore desk state from desk-state branch
+        if: steps.secrets.outputs.present == 'true' && steps.matrix.outputs.fresh == 'true'
+        run: |
+          mkdir -p state
+          if git ls-remote --exit-code --heads origin desk-state >/dev/null 2>&1; then
+            git fetch origin desk-state
+            if git cat-file -e FETCH_HEAD:state/desk.json 2>/dev/null; then
+              git show FETCH_HEAD:state/desk.json > state/desk.json
+            fi
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.secrets.outputs.present == 'true' && steps.matrix.outputs.fresh == 'true'
+        with:
+          python-version: "3.11"
+
+      - name: Install and build runner image
+        if: steps.secrets.outputs.present == 'true' && steps.matrix.outputs.fresh == 'true'
+        run: |
+          pip install -e .
+          docker build -t matrix-globe-runner:py311 -f docker/Dockerfile docker/
+
+      - name: Run one desk poll cycle
+        if: steps.secrets.outputs.present == 'true' && steps.matrix.outputs.fresh == 'true'
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          PROOFDESK_KEY: ${{ secrets.PROOFDESK_KEY }}
+          MATRIX_API: https://matrixagentnet.com/api/proxy
+        run: python -m proof.desk --once
+
+      - name: Persist desk state to desk-state branch
+        if: steps.secrets.outputs.present == 'true' && steps.matrix.outputs.fresh == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f state/desk.json ]; then
+            echo "No state file to persist."
+            exit 0
+          fi
+          cp state/desk.json /tmp/desk.json
+          git config user.name "proofdesk"
+          git config user.email "proofdesk@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin desk-state >/dev/null 2>&1; then
+            git fetch origin desk-state
+            git checkout -B desk-state FETCH_HEAD
+          else
+            git checkout --orphan desk-state
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p state
+          cp /tmp/desk.json state/desk.json
+          git add -f state/desk.json
+          git commit -m "desk: update state" || { echo "State unchanged."; exit 0; }
+          git push origin HEAD:desk-state
