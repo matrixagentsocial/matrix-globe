@@ -10,7 +10,8 @@ Running log for Matrix Globe. Updated every session.
 | M1 — Sandbox + tasks + builder | done |
 | M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
 | M3 — FinCode-30 complete | done (30 tasks + 90 mutants validated; review-benchmark pilot v2 on dev; prompts frozen at tag `prompts-v1`) |
-| M4 — Matrix desk (@proofdesk) | built against a mocked Matrix (Matrix is down until ~Nov 1); live dry run done; going live pending owner registration + repo secrets |
+| M4 — Matrix desk (@proofdesk) | built against a mocked Matrix (Matrix is down until ~Nov 1); live dry run done; going live when Matrix is back (no owner tasks: see PLAN.md section 9, update of 2026-10-27) |
+| M6 — Final benchmark | run done on the test split (see "Final run results"); hand classification of UNCONFIRMED claims pending |
 
 ## Verified facts (M0)
 
@@ -545,6 +546,77 @@ call was made this session; everything is tested with an
    15-minute schedule run; publish the curated showcase proofs and keep
    an eye on the desk's $5/day and product budget caps.
 
+## Final run results (test split, 2026-10-27)
+
+Held-out test split only, reviewer effort medium, prompts frozen at
+`prompts-v1`, trusted local sandbox (our own benchmark code). Raw rows,
+bundles and per-target tables: `results/final/` (`summary_pr.md`,
+`summary_single.md`, `run-notes.txt`). Commit `13f8123`.
+
+PR targets (6 test PRs x 3 buggy + 1 clean; each bug hides in one of
+three modules among ~55 hidden tests):
+
+| condition | targets | fixed on buggy | damage on clean | regressions | precision (VALID/PROVEN) | $/target |
+|---|---|---|---|---|---|---|
+| R no review | 48 (2 seeds) | 0/36 | 0/12 | 0 | n/a | $0 |
+| C Spark self-check | 48 (2 seeds) | 36/36 | 0/12 | 0 | n/a | $0.0069 |
+| E Wonder free-text | 24 | 17/18 | 0/6 | 0 | n/a | $0.1957 |
+| D Matrix Globe (proof-gated) | 24 | 17/18 | 0/6 | 2 | 20/72 = 0.28 | $0.3115 |
+| B Wonder max regenerates | 6 PRs | 6/6 regenerated PRs pass | n/a | 0 | n/a | $0.3390 per PR |
+
+Single-task targets (20 test tasks x 3 mutants + 1 clean):
+
+| condition | targets | fixed on mutants | damage on clean | regressions | precision | $/target |
+|---|---|---|---|---|---|---|
+| R | 160 (2 seeds) | 0/120 | 0/40 | 0 | n/a | $0 |
+| C | 160 (2 seeds) | 119/120 | 0/40 | 0 | n/a | $0.0047 |
+| E | 80 | 60/60 | 0/20 | 0 | n/a | $0.1011 |
+| D (subset, 10 tasks) | 40 | 28/30 | 0/10 | 0 | 36/97 = 0.37 | $0.1816 |
+
+On the same 10-task subset, C (seed 0) fixed 29/30 and E 30/30.
+
+How the run went, honestly:
+
+- The first driver (`bench/final_run.py`, sequential) died at 10:16 CET
+  when the session that launched it closed, after 16 of 24 PR D rows.
+  It was resumed at 11:52 as per-task jobs in parallel without redoing
+  any finished row (drivers kept outside the repo; what they did is in
+  `run-notes.txt`).
+- Billing at ~12:50 CET showed only $61.03 of the $150 Meta credits
+  left (Muse Code build sessions cost about 1.5x their `run.usage`).
+  Single-task D was therefore cut to a subset declared before any of
+  its rows ran: every other test task in alphabetical order (10 of 20),
+  capped at $14. Nothing else was cut.
+- Final-run Meta spend: about $30.6 (PR: R $0, C $0.33, E $4.70,
+  D $7.48, B $2.03; single: R $0, C $0.75, E $8.09, D $7.26).
+
+Reading:
+
+- With Meta's hosted models, every reviewing condition fixes almost
+  every bug and none damages correct code. The cheap Spark self-check
+  is as good as anything here (36/36 and 119/120) at about 1/40 of
+  D's price. Requiring proof does **not** raise the fix rate with a
+  Wonder reviewer. D's one miss is also its only damage: on
+  `pr_test_3/buggy_b` the revision broke two previously passing hidden
+  tests (legal-suffix handling; hidden 57/58 -> 56/58, status FAILED).
+  The bundle records this honestly; the loop's rollback only guards
+  against regressions it can see (public and proven tests), not hidden
+  ones.
+- D's measured value with Wonder is the audit trail: every reported
+  defect comes with an executable failing test, and the precision of
+  that trail is measured (0.28 on PRs, 0.37 on single tasks). Most
+  UNCONFIRMED claims in the pilots were spec ambiguities or defects
+  our references share; M6 still has to classify the 52 + 61 final
+  UNCONFIRMED claims by hand (spec ambiguity / shared defect / reviewer
+  error) before this number is quoted.
+- The proof rule matters when the reviewer is weaker. In the
+  open-weights run (branch `open-weights`, Muse Spark Open on Baseten
+  for every role) proof-gated review fixed 57/60 single-task mutants
+  versus 41/60 for free-text review by the same model (PR: 17/18 vs
+  12/18), at $0.06 per target, with no damage. That is the headline:
+  "no proof, no bug" turns a cheap open model into a reliable reviewer,
+  and every claim it makes is checkable.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -574,9 +646,13 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-The final test-split benchmark run follows the recommended design in
-the M3 part 4 section above (PR targets headline + single-task breadth,
-reviewer effort medium now actually delivered, D 1 seed, about $43.82
-of the $45 cap, with its cut rule); do not start it without a fresh
-session budget. No LLM call may touch test-split tasks outside that
-run. M4 is built against a mocked Matrix (see the M4 section above); going live waits for Matrix to return (~Nov 1) and the owner tasks listed there.
+The final run is done (see "Final run results"). Next: merge
+`open-weights`; classify the final UNCONFIRMED claims by hand; judges'
+README and `docs/built-with-muse-code.md`; update the Pages viewer with
+the final results; desk changes from PLAN.md section 9 (desk runs on the
+owner's PC with `DESK_STACK=open`, untrusted code runs in a secret-less
+GitHub Actions Docker job, no repo secrets). When Matrix is back (~Nov 1):
+provision the agents as seeded service agents, deploy `/proof` + MCP,
+publish showcase proofs, record the Muse Code <-> Matrix demo. Meta
+credits are tight (about $40 left after the final run): no more
+benchmark runs on the Meta API.
