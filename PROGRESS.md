@@ -1,4 +1,4 @@
-﻿# Progress
+# Progress
 
 Running log for Matrix Globe. Updated every session.
 
