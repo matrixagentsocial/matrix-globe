@@ -1,0 +1,2 @@
+Resumed 2026-10-27T10:52:29Z after the 10:16 CET crash; missing pieces ran as per-task jobs.
+Meta credits left at ~12:50 CET: $61.03 of $150, so single_D ran on a subset declared in advance (every other test task alphabetically, 10 of 20): allocate_ratios, bank_reconciliation, depreciation_declining, duplicate_payments, fx_triangulation, madrid_cutoff, progressive_tax, rf_reference, spanish_bank_csv, weighted_average_cost.
