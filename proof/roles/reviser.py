@@ -108,6 +108,7 @@ def _package_text(modules: dict[str, str]) -> str:
 def revise_code_modules(client: Any, spec: str, modules: dict[str, str],
                         proven_claims: list[Any], *, run_id: str | None = None,
                         model: str | None = None, effort: str | None = None,
+                        origin: str = "bench",
                         max_tokens: int = REVISER_MAX_TOKENS) -> ModuleRevision:
     """Reviser for a PR package: may touch any module, returns all of them."""
     template = PROMPT_PATH.read_text(encoding="utf-8")
@@ -125,7 +126,7 @@ def revise_code_modules(client: Any, spec: str, modules: dict[str, str],
         extra["effort"] = effort
     result = client.complete("reviser", [{"role": "user", "content": prompt}],
                              schema=REVISER_MODULES_SCHEMA, run_id=run_id,
-                             max_tokens=max_tokens, metadata={"origin": "bench"}, **extra)
+                             max_tokens=max_tokens, metadata={"origin": origin}, **extra)
     data = dict(result) if isinstance(result, dict) else result.model_dump()
     rev = _coerce({"code": "package", "addressed": data.get("addressed", []),
                    "contested": data.get("contested", [])})
@@ -199,7 +200,8 @@ def _coerce(result: Any, *, freeform: bool = False) -> Revision:
 
 def revise_code(client: Any, spec: str, code: str, proven_claims: list[Any], *,
                 run_id: str | None = None, model: str | None = None,
-                effort: str | None = None, max_tokens: int = REVISER_MAX_TOKENS) -> Revision:
+                effort: str | None = None, origin: str = "bench",
+                max_tokens: int = REVISER_MAX_TOKENS) -> Revision:
     template = PROMPT_PATH.read_text(encoding="utf-8")
     prompt = (template.replace("{spec}", spec).replace("{code}", code)
               .replace("{claims}", _claim_text(proven_claims)))
@@ -210,7 +212,7 @@ def revise_code(client: Any, spec: str, code: str, proven_claims: list[Any], *,
         extra["effort"] = effort
     result = client.complete("reviser", [{"role": "user", "content": prompt}],
                              schema=REVISER_SCHEMA, run_id=run_id, max_tokens=max_tokens,
-                             metadata={"origin": "bench"}, **extra)
+                             metadata={"origin": origin}, **extra)
     return _coerce(result)
 
 

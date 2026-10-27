@@ -83,6 +83,7 @@ def review_code(client: Any, spec: str, code: str, public_results: str, *,
                 run_id: str | None = None, history: str = "",
                 model: str | None = None, effort: str | None = None,
                 module_names: list[str] | None = None,
+                origin: str = "bench",
                 max_tokens: int = REVIEWER_MAX_TOKENS) -> ReviewReport:
     prompt = build_reviewer_prompt(spec, code, public_results, history)
     if module_names:
@@ -98,7 +99,7 @@ def review_code(client: Any, spec: str, code: str, public_results: str, *,
         extra["effort"] = effort
     result = client.complete("reviewer", [{"role": "user", "content": prompt}],
                              schema=REVIEWER_SCHEMA, run_id=run_id,
-                             max_tokens=max_tokens, metadata={"origin": "bench"}, **extra)
+                             max_tokens=max_tokens, metadata={"origin": origin}, **extra)
     report = _coerce_report(result)
     # Enforce the <=5 claim limit even if a model over-reports.
     if len(report.claims) > 5:
@@ -115,6 +116,7 @@ def review_freeform(client: Any, spec: str, code: str, public_results: str, *,
                     run_id: str | None = None, history: str = "",
                     model: str | None = None, effort: str | None = None,
                     module_names: list[str] | None = None,
+                    origin: str = "bench",
                     max_tokens: int = REVIEWER_MAX_TOKENS) -> str:
     """Condition E: plain-text feedback, no schema, no tests, no proof rule."""
     prompt = build_freeform_prompt(spec, code, public_results, history)
@@ -130,7 +132,7 @@ def review_freeform(client: Any, spec: str, code: str, public_results: str, *,
         extra["effort"] = effort
     result = client.complete("reviewer", [{"role": "user", "content": prompt}],
                              run_id=run_id, max_tokens=max_tokens,
-                             metadata={"origin": "bench"}, **extra)
+                             metadata={"origin": origin}, **extra)
     if isinstance(result, str):
         return result
     return str(result)

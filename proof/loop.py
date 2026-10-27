@@ -97,7 +97,9 @@ class ProofLoop:
                  initial_code: str | None = None,
                  target_id: str = "",
                  initial_modules: dict[str, str] | None = None,
-                 reference_modules: dict[str, str] | None = None) -> None:
+                 reference_modules: dict[str, str] | None = None,
+                 origin: str = "bench") -> None:
+        self.origin = str(origin or "bench")
         self.task = task
         self.mode = normalise_mode(mode)
         self.client_raw = client
@@ -193,7 +195,11 @@ class ProofLoop:
         return run_pytest(self.sandbox, code, test_files, timeout_s=self.sandbox_timeout_s)
 
     def run_public(self, code: str):
-        return self.run_tests(code, {"public_test.py": str(_field(self.task, "public_test"))})
+        public_test = str(_field(self.task, "public_test") or "")
+        if not public_test.strip():
+            from proof.pytest_runner import PytestRunResult
+            return PytestRunResult()
+        return self.run_tests(code, {"public_test.py": public_test})
 
     def evaluate(self, code: str) -> tuple[TestCounts, TestCounts, int, Any]:
         """Return (public, proven(non-contested), score, public_result)."""
@@ -294,6 +300,7 @@ class ProofLoop:
                 report = review_code(self.client, spec, current, format_public_results(pub),
                                      run_id=self.run_id, history=history,
                                      effort=getattr(self.settings, "effort_reviewer", None),
+                                     origin=self.origin,
                                      module_names=self.module_names if self.is_pr else None)
             except Exception as exc:
                 self.event("step_failed", f"reviewer round {n} failed: {exc}", round_=n)
@@ -332,14 +339,19 @@ class ProofLoop:
                 break
             try:
                 claims_in = [p.to_claim_dict() for p in proven]
+                reviser_model = None
+                if self.origin == "external":
+                    reviser_model = getattr(self.settings, "model_builder_external", None)
                 if self.is_pr:
                     from proof.roles.reviser import revise_code_modules
                     mod_rev = revise_code_modules(self.client, spec, self.code_files(current),
-                                                  claims_in, run_id=self.run_id)
+                                                  claims_in, run_id=self.run_id,
+                                                  model=reviser_model, origin=self.origin)
                     revision = mod_rev
                     candidate_code = format_package(mod_rev.modules)
                 else:
-                    revision = revise_code(self.client, spec, current, claims_in, run_id=self.run_id)
+                    revision = revise_code(self.client, spec, current, claims_in, run_id=self.run_id,
+                                           model=reviser_model, origin=self.origin)
                     candidate_code = revision.code
             except Exception as exc:
                 self.event("step_failed", f"reviser round {n} failed: {exc}", round_=n)
@@ -499,7 +511,9 @@ class ProofLoop:
         public, proven = self.best_public, self.best_proven
         if self.mode == "R":
             status = "UNREVIEWED"
-        elif public.total == 0 or public.passed < public.total:
+        elif not final_code:
+            status = "FAILED"
+        elif public.total > 0 and public.passed < public.total:
             status = "FAILED"
         elif proven.total > 0 and proven.passed < proven.total:
             status = "PARTIAL"
@@ -526,6 +540,8 @@ class ProofLoop:
             usd = self.run_usd()
 
         builder_model = getattr(self.settings, "model_builder", "muse-spark-1.3-contributor")
+        if self.origin == "external":
+            builder_model = getattr(self.settings, "model_builder_external", builder_model)
         builder_effort = getattr(self.settings, "effort_builder", "medium")
         reviewer_model = getattr(self.settings, "model_reviewer", "muse-wonder-1.0")
         reviewer_effort = getattr(self.settings, "effort_reviewer", "high")
