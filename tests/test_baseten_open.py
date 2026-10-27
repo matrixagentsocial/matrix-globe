@@ -160,12 +160,16 @@ def test_open_conditions_mocked(tmp_path):
 
     for cond, target_code in (("C_open", GOOD), ("E_open", BAD), ("D_open", BAD)):
         bundles = tmp_path / cond
+        fake = FakeOpenClient()
         rows = run_review_bench(
-            [_tiny_task()], cond, client=FakeOpenClient(), sandbox=LocalSandbox(),
+            [_tiny_task()], cond, client=fake, sandbox=LocalSandbox(),
             seeds=1, ledger=None, settings=_settings(), bundles_dir=bundles,
             targets="clean")
         assert len(rows) == 1
         row = rows[0]
+        # The loop must pass the open model explicitly on every call, even
+        # though the client was built with Wonder/Spark settings.
+        assert fake.calls and all(kw.get("model") == OPEN_MODEL for _, kw in fake.calls)
         assert row["condition"] == cond
         assert row["provider"] == "baseten"
         assert row["model"] == OPEN_MODEL

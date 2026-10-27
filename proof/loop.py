@@ -265,7 +265,9 @@ class ProofLoop:
                             model=getattr(self.settings, "model_reviewer", "muse-wonder-1.0"),
                             effort="max")
                     else:
-                        current = build_solution(self.client, spec, run_id=self.run_id)
+                        current = build_solution(
+                            self.client, spec, run_id=self.run_id,
+                            model=getattr(self.settings, "model_builder", None))
                     self.event("builder_completed", f"code sha {sha256_text(current)[:12]}")
                 except Exception as exc:  # recovery: record, continue with best (empty)
                     self.event("step_failed", f"builder failed: {exc}")
@@ -305,6 +307,7 @@ class ProofLoop:
                 pub = self.run_public(current)
                 report = review_code(self.client, spec, current, format_public_results(pub),
                                      run_id=self.run_id, history=history,
+                                     model=getattr(self.settings, "model_reviewer", None),
                                      effort=getattr(self.settings, "effort_reviewer", None),
                                      origin=self.origin,
                                      module_names=self.module_names if self.is_pr else None)
@@ -352,12 +355,14 @@ class ProofLoop:
                     from proof.roles.reviser import revise_code_modules
                     mod_rev = revise_code_modules(self.client, spec, self.code_files(current),
                                                   claims_in, run_id=self.run_id,
-                                                  model=reviser_model, origin=self.origin)
+                                                  model=reviser_model or getattr(self.settings, "model_builder", None),
+                                                  origin=self.origin)
                     revision = mod_rev
                     candidate_code = format_package(mod_rev.modules)
                 else:
                     revision = revise_code(self.client, spec, current, claims_in, run_id=self.run_id,
-                                           model=reviser_model, origin=self.origin)
+                                           model=reviser_model or getattr(self.settings, "model_builder", None),
+                                           origin=self.origin)
                     candidate_code = revision.code
             except Exception as exc:
                 self.event("step_failed", f"reviser round {n} failed: {exc}", round_=n)
@@ -397,6 +402,7 @@ class ProofLoop:
                 pub = self.run_public(current)
                 feedback = review_freeform(self.client, spec, current, format_public_results(pub),
                                            run_id=self.run_id, history=history,
+                                           model=getattr(self.settings, "model_reviewer", None),
                                            effort=getattr(self.settings, "effort_reviewer", None),
                                            module_names=self.module_names if self.is_pr else None)
             except Exception as exc:
@@ -413,12 +419,15 @@ class ProofLoop:
             try:
                 if self.is_pr:
                     from proof.roles.reviser import revise_from_freeform_modules
-                    mod_rev = revise_from_freeform_modules(self.client, spec, self.code_files(current),
-                                                           feedback, run_id=self.run_id)
+                    mod_rev = revise_from_freeform_modules(
+                        self.client, spec, self.code_files(current), feedback,
+                        run_id=self.run_id, model=getattr(self.settings, "model_builder", None))
                     revision = mod_rev
                     candidate_code = format_package(mod_rev.modules)
                 else:
-                    revision = revise_from_freeform(self.client, spec, current, feedback, run_id=self.run_id)
+                    revision = revise_from_freeform(
+                        self.client, spec, current, feedback, run_id=self.run_id,
+                        model=getattr(self.settings, "model_builder", None))
                     candidate_code = revision.code
             except Exception as exc:
                 self.event("step_failed", f"reviser (freeform) round {n} failed: {exc}", round_=n)
@@ -451,10 +460,13 @@ class ProofLoop:
                 break
             try:
                 if self.is_pr:
-                    tests = sr.generate_self_tests_modules(self.client, spec, self.code_files(current),
-                                                           run_id=self.run_id)
+                    tests = sr.generate_self_tests_modules(
+                        self.client, spec, self.code_files(current), run_id=self.run_id,
+                        model=getattr(self.settings, "model_builder", None))
                 else:
-                    tests = sr.generate_self_tests(self.client, spec, current, run_id=self.run_id)
+                    tests = sr.generate_self_tests(
+                        self.client, spec, current, run_id=self.run_id,
+                        model=getattr(self.settings, "model_builder", None))
             except Exception as exc:
                 self.event("step_failed", f"self-refine tests round {n} failed: {exc}", round_=n)
                 break
@@ -475,10 +487,13 @@ class ProofLoop:
                 if self.is_pr:
                     candidate = format_package(sr.refine_code_modules(
                         self.client, spec, self.code_files(current), tests,
-                        format_public_results(self_run), run_id=self.run_id))
+                        format_public_results(self_run), run_id=self.run_id,
+                        model=getattr(self.settings, "model_builder", None)))
                 else:
-                    candidate = sr.refine_code(self.client, spec, current, tests,
-                                               format_public_results(self_run), run_id=self.run_id)
+                    candidate = sr.refine_code(
+                        self.client, spec, current, tests,
+                        format_public_results(self_run), run_id=self.run_id,
+                        model=getattr(self.settings, "model_builder", None))
             except Exception as exc:
                 self.event("step_failed", f"self-refine revise round {n} failed: {exc}", round_=n)
                 break
