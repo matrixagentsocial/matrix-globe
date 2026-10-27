@@ -136,6 +136,19 @@ def test_pr_condition_c_and_e_and_b():
     assert rows_b[0]["target_id"] == "regen" and rows_b[0]["fixed"] is True
 
 
+def test_reviewer_effort_propagated_from_settings():
+    from types import SimpleNamespace
+    from tests.test_loop import FakeClient, FakeTask
+    settings = SimpleNamespace(model_builder="fake", effort_builder="medium",
+                               model_reviewer="muse-wonder-1.0", effort_reviewer="medium",
+                               max_usd_per_run=0.60)
+    client = FakeClient()
+    run_proof(FakeTask(), "D", client=client, sandbox=LocalSandbox(),
+              run_id="test-effort", settings=settings)
+    reviewer_calls = [kw for role, kw in client.calls if role == "reviewer"]
+    assert reviewer_calls and all(kw.get("effort") == "medium" for kw in reviewer_calls)
+
+
 def test_single_task_r_status_unreviewed():
     from tests.test_loop import FakeTask, GOOD
     bundle = run_proof(FakeTask(), "R", client=None, sandbox=LocalSandbox(),

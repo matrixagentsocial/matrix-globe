@@ -293,6 +293,7 @@ class ProofLoop:
                 pub = self.run_public(current)
                 report = review_code(self.client, spec, current, format_public_results(pub),
                                      run_id=self.run_id, history=history,
+                                     effort=getattr(self.settings, "effort_reviewer", None),
                                      module_names=self.module_names if self.is_pr else None)
             except Exception as exc:
                 self.event("step_failed", f"reviewer round {n} failed: {exc}", round_=n)
@@ -378,6 +379,7 @@ class ProofLoop:
                 pub = self.run_public(current)
                 feedback = review_freeform(self.client, spec, current, format_public_results(pub),
                                            run_id=self.run_id, history=history,
+                                           effort=getattr(self.settings, "effort_reviewer", None),
                                            module_names=self.module_names if self.is_pr else None)
             except Exception as exc:
                 self.event("step_failed", f"freeform reviewer round {n} failed: {exc}", round_=n)
