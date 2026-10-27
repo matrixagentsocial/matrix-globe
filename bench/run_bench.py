@@ -32,6 +32,24 @@ from proof.pytest_runner import run_pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAX_USD_PER_SINGLE_RUN = 0.05
 
+# Open-weights conditions: same loop modes, all roles on Spark Open via Baseten.
+OPEN_CONDITIONS = {"C_open": "C", "E_open": "E", "D_open": "D"}
+
+
+def _open_settings(settings: Any) -> Any:
+    """Return settings with every role on the open model (Baseten)."""
+    if settings is None:
+        return settings
+    from proof.config import OPEN_MODEL
+    try:
+        return dc_replace(settings, model_builder=OPEN_MODEL,
+                          model_builder_external=OPEN_MODEL, model_reviewer=OPEN_MODEL)
+    except Exception:
+        settings.model_builder = OPEN_MODEL  # type: ignore[attr-defined]
+        settings.model_builder_external = OPEN_MODEL  # type: ignore[attr-defined]
+        settings.model_reviewer = OPEN_MODEL  # type: ignore[attr-defined]
+        return settings
+
 
 class SingleRunCostExceeded(RuntimeError):
     """One run cost more than the configured stop threshold."""
@@ -263,7 +281,9 @@ def run_review_bench(
     """
     from proof.loop import run_proof
 
-    cond = str(cond).upper()
+    cond_label = str(cond)
+    is_open = cond_label in OPEN_CONDITIONS
+    cond = OPEN_CONDITIONS.get(cond_label, str(cond).upper())
     if cond not in ("R", "B", "C", "D", "E"):
         raise ValueError(f"review benchmark condition must be R|B|C|D|E, got {cond!r}")
     eff_settings = settings
@@ -273,6 +293,8 @@ def run_review_bench(
         except Exception:
             settings.effort_reviewer = reviewer_effort  # type: ignore[attr-defined]
             eff_settings = settings
+    if is_open:
+        eff_settings = _open_settings(eff_settings)
     rows: list[dict[str, Any]] = []
     for task in tasks:
         if cond == "B":
@@ -281,7 +303,7 @@ def run_review_bench(
             target_list = load_targets(task, targets)
         for target_id, target_code in target_list:
             for seed in range(seeds):
-                run_id = f"bench-{cond}-{task.id}-{target_id}-s{seed}{run_suffix}"
+                run_id = f"bench-{cond_label}-{task.id}-{target_id}-s{seed}{run_suffix}"
                 started = time.monotonic()
                 hidden_before = run_pytest(sandbox, target_code, {"hidden_test.py": task.hidden_test})
                 before_passed = _passed_names(hidden_before)
@@ -311,8 +333,11 @@ def run_review_bench(
                 damaged = bool(target_id == "clean" and not fixed)
                 bundle_path, bundle_sha = _write_bundle(bundle, bundles_dir, run_id)
                 counts = _claim_counts(bundle)
+                from proof.config import OPEN_MODEL as _OM, provider_for_model as _pf
                 row = {
-                    "task_id": task.id, "target_id": target_id, "condition": cond,
+                    "task_id": task.id, "target_id": target_id, "condition": cond_label,
+                    "provider": _pf(_OM) if is_open else "meta",
+                    "model": _OM if is_open else "",
                     "seed": seed,
                     "hidden_before_passed": hidden_before.passed,
                     "hidden_before_total": hidden_before.total,
@@ -371,7 +396,9 @@ def run_review_bench_prs(
     from proof.package import parse_package
     from proof.pytest_runner import run_pytest_files
 
-    cond = str(cond).upper()
+    cond_label = str(cond)
+    is_open = cond_label in OPEN_CONDITIONS
+    cond = OPEN_CONDITIONS.get(cond_label, str(cond).upper())
     if cond not in ("R", "B", "C", "D", "E"):
         raise ValueError(f"PR review condition must be R|B|C|D|E, got {cond!r}")
     eff_settings = settings
@@ -381,6 +408,8 @@ def run_review_bench_prs(
         except Exception:
             settings.effort_reviewer = reviewer_effort  # type: ignore[attr-defined]
             eff_settings = settings
+    if is_open:
+        eff_settings = _open_settings(eff_settings)
     rows: list[dict[str, Any]] = []
     for pr in prs:
         if cond == "B":
@@ -391,7 +420,7 @@ def run_review_bench_prs(
             target_list = [(t, m) for t, m in target_list if t == target_filter]
         for target_id, target_modules in target_list:
             for seed in range(seeds):
-                run_id = f"bench-{cond}-{pr.id}-{target_id}-s{seed}{run_suffix}"
+                run_id = f"bench-{cond_label}-{pr.id}-{target_id}-s{seed}{run_suffix}"
                 started = time.monotonic()
                 hidden_before = run_pytest_files(sandbox, target_modules,
                                                  {"hidden_test.py": pr.hidden_test})
@@ -425,9 +454,13 @@ def run_review_bench_prs(
                 counts = _claim_counts(bundle)
                 mutated = next((tt["mutated_module"] for tt in pr.meta.get("targets", [])
                                 if tt["target_id"] == target_id), None)
+                from proof.config import OPEN_MODEL as _OM2, provider_for_model as _pf2
                 row = {
                     "task_id": pr.id, "pr_id": pr.id, "target_id": target_id,
-                    "condition": cond, "seed": seed,
+                    "condition": cond_label,
+                    "provider": _pf2(_OM2) if is_open else "meta",
+                    "model": _OM2 if is_open else "",
+                    "seed": seed,
                     "tasks": list(pr.meta.get("tasks", [])),
                     "mutated_module": mutated,
                     "hidden_before_passed": hidden_before.passed,
@@ -479,7 +512,7 @@ def format_results_table(rows: list[dict[str, Any]]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run FinCode review benchmark")
-    parser.add_argument("--cond", default="D", choices=["R", "B", "C", "D", "E", "A"])
+    parser.add_argument("--cond", default="D", choices=["R", "B", "C", "D", "E", "A", "C_open", "E_open", "D_open"])
     parser.add_argument("--split", default="dev", choices=["dev", "test"])
     parser.add_argument("--targets", default="all", choices=["mutants", "clean", "all", "prs"])
     parser.add_argument("--prs", default=str(REPO_ROOT / "bench" / "prs"))

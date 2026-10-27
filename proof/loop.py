@@ -24,6 +24,7 @@ from proof.bundle import (
     BundleClaim, BundleCost, BundleEvent, BundleRound, BundleTests,
     ModelRef, ModelsRef, ProofBundle, TaskRef, TestCounts, format_usd, sha256_text,
 )
+from proof.config import provider_for_model
 from proof.package import format_package, parse_package
 from proof.proofrule import prove_claims, prove_claims_modules
 from proof.pytest_runner import run_pytest, run_pytest_files
@@ -40,7 +41,12 @@ _MODE_ALIASES = {
     "C": "C", "self_refine": "C",
     "D": "D", "matrix_proof": "D",
     "E": "E", "review_freeform": "E",
+    "C_OPEN": "C", "C_open": "C",
+    "D_OPEN": "D", "D_open": "D",
+    "E_OPEN": "E", "E_open": "E",
 }
+
+OPEN_MODES = {"C_open", "D_open", "E_open"}
 
 
 def normalise_mode(mode: str) -> str:
@@ -552,8 +558,10 @@ class ProofLoop:
             createdAt=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             task=TaskRef(id=task_id, specSha256=sha256_text(spec)),
             models=ModelsRef(
-                builder=ModelRef(model=str(builder_model), effort=str(builder_effort)),
-                reviewer=ModelRef(model=str(reviewer_model), effort=str(reviewer_effort)),
+                builder=ModelRef(provider=provider_for_model(str(builder_model)),
+                                 model=str(builder_model), effort=str(builder_effort)),
+                reviewer=ModelRef(provider=provider_for_model(str(reviewer_model)),
+                                  model=str(reviewer_model), effort=str(reviewer_effort)),
             ),
             mode=self.mode,
             target=self.target_id,
