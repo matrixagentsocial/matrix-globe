@@ -1,0 +1,40 @@
+{
+  "id": "pr_test_4",
+  "split": "test",
+  "tasks": [
+    "idempotent_ledger",
+    "madrid_cutoff",
+    "percent_change"
+  ],
+  "modules": {
+    "task_a.py": "idempotent_ledger",
+    "task_b.py": "madrid_cutoff",
+    "task_c.py": "percent_change"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "idempotent_ledger"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "madrid_cutoff"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "percent_change"
+    }
+  ]
+}

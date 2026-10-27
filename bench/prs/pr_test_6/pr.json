@@ -1,0 +1,40 @@
+{
+  "id": "pr_test_6",
+  "split": "test",
+  "tasks": [
+    "running_balance",
+    "spanish_bank_csv",
+    "spanish_tax_id"
+  ],
+  "modules": {
+    "task_a.py": "running_balance",
+    "task_b.py": "spanish_bank_csv",
+    "task_c.py": "spanish_tax_id"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "running_balance"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "spanish_bank_csv"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "spanish_tax_id"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "pr_dev_2",
+  "split": "dev",
+  "tasks": [
+    "day_count",
+    "fifo_cost",
+    "iban_validation"
+  ],
+  "modules": {
+    "task_a.py": "day_count",
+    "task_b.py": "fifo_cost",
+    "task_c.py": "iban_validation"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "day_count"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "fifo_cost"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "iban_validation"
+    }
+  ]
+}

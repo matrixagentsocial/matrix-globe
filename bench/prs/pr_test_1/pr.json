@@ -1,0 +1,40 @@
+{
+  "id": "pr_test_1",
+  "split": "test",
+  "tasks": [
+    "allocate_ratios",
+    "apr_apy",
+    "bank_reconciliation"
+  ],
+  "modules": {
+    "task_a.py": "allocate_ratios",
+    "task_b.py": "apr_apy",
+    "task_c.py": "bank_reconciliation"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "allocate_ratios"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "apr_apy"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "bank_reconciliation"
+    }
+  ]
+}

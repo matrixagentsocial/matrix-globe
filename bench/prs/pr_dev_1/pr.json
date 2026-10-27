@@ -1,0 +1,40 @@
+{
+  "id": "pr_dev_1",
+  "split": "dev",
+  "tasks": [
+    "amortization_schedule",
+    "business_days",
+    "currency_rounding"
+  ],
+  "modules": {
+    "task_a.py": "amortization_schedule",
+    "task_b.py": "business_days",
+    "task_c.py": "currency_rounding"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "amortization_schedule"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "business_days"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "currency_rounding"
+    }
+  ]
+}

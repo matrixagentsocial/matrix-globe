@@ -1,0 +1,40 @@
+{
+  "id": "pr_test_3",
+  "split": "test",
+  "tasks": [
+    "duplicate_payments",
+    "eom_roll",
+    "fx_triangulation"
+  ],
+  "modules": {
+    "task_a.py": "duplicate_payments",
+    "task_b.py": "eom_roll",
+    "task_c.py": "fx_triangulation"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "duplicate_payments"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "eom_roll"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "fx_triangulation"
+    }
+  ]
+}

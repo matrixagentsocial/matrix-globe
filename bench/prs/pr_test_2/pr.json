@@ -1,0 +1,40 @@
+{
+  "id": "pr_test_2",
+  "split": "test",
+  "tasks": [
+    "budget_variance",
+    "depreciation_declining",
+    "depreciation_straight_line"
+  ],
+  "modules": {
+    "task_a.py": "budget_variance",
+    "task_b.py": "depreciation_declining",
+    "task_c.py": "depreciation_straight_line"
+  },
+  "targets": [
+    {
+      "target_id": "clean",
+      "mutated_module": null,
+      "mutant": null,
+      "task_id": null
+    },
+    {
+      "target_id": "buggy_a",
+      "mutated_module": "task_a.py",
+      "mutant": "m1",
+      "task_id": "budget_variance"
+    },
+    {
+      "target_id": "buggy_b",
+      "mutated_module": "task_b.py",
+      "mutant": "m1",
+      "task_id": "depreciation_declining"
+    },
+    {
+      "target_id": "buggy_c",
+      "mutated_module": "task_c.py",
+      "mutant": "m1",
+      "task_id": "depreciation_straight_line"
+    }
+  ]
+}
