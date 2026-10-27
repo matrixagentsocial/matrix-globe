@@ -360,6 +360,7 @@ def run_review_bench_prs(
     max_usd_per_single_run: float = 10.0,
     on_row: Any = None,
     run_suffix: str = "",
+    target_filter: str | None = None,
 ) -> list[dict[str, Any]]:
     """Review benchmark on PR packages: one row per (PR, target, seed).
 
@@ -386,6 +387,8 @@ def run_review_bench_prs(
             target_list: list[tuple[str, dict[str, str]]] = [("regen", dict(pr.clean_modules))]
         else:
             target_list = load_pr_targets(pr, tasks_root, "all")
+        if target_filter:
+            target_list = [(t, m) for t, m in target_list if t == target_filter]
         for target_id, target_modules in target_list:
             for seed in range(seeds):
                 run_id = f"bench-{cond}-{pr.id}-{target_id}-s{seed}{run_suffix}"
@@ -480,6 +483,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--split", default="dev", choices=["dev", "test"])
     parser.add_argument("--targets", default="all", choices=["mutants", "clean", "all", "prs"])
     parser.add_argument("--prs", default=str(REPO_ROOT / "bench" / "prs"))
+    parser.add_argument("--pr-target", default=None,
+                        help="PR mode only: run only this target id (e.g. buggy_a)")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--seeds", type=int, default=1)
     parser.add_argument("--sandbox", default="local", choices=["local", "docker"])
@@ -546,7 +551,8 @@ def main(argv: list[str] | None = None) -> int:
                                         tasks_root=args.tasks,
                                         reviewer_effort=args.reviewer_effort,
                                         max_usd_per_single_run=args.max_usd_per_run,
-                                        on_row=_on_row, run_suffix=args.run_suffix)
+                                        on_row=_on_row, run_suffix=args.run_suffix,
+                                        target_filter=args.pr_target)
         elif args.cond == "A":
             rows = run_condition(tasks, "A", client=client, sandbox=sandbox, seeds=args.seeds,
                                  ledger=ledger, settings=settings, bundles_dir=bundles_dir,
