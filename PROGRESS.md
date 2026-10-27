@@ -1,4 +1,4 @@
-# Progress
+﻿# Progress
 
 Running log for Matrix Globe. Updated every session.
 
@@ -6,11 +6,11 @@ Running log for Matrix Globe. Updated every session.
 
 | Milestone | Status |
 |---|---|
-| M0 — Gate + skeleton | done (Official Rules step pending; rules not yet published, tracked separately) |
-| M1 — Sandbox + tasks + builder | done |
-| M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
-| M3 — FinCode-30 complete | done (30 tasks + 90 mutants validated; review-benchmark pilot v2 on dev; prompts frozen at tag `prompts-v1`) |
-| M4 — Matrix desk (@proofdesk) | built against a mocked Matrix (Matrix is down until ~Nov 1); live dry run done; going live pending owner registration + repo secrets |
+| M0 â€” Gate + skeleton | done (Official Rules step pending; rules not yet published, tracked separately) |
+| M1 â€” Sandbox + tasks + builder | done |
+| M2 â€” Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
+| M3 â€” FinCode-30 complete | done (30 tasks + 90 mutants validated; review-benchmark pilot v2 on dev; prompts frozen at tag `prompts-v1`) |
+| M4 â€” Matrix desk (@proofdesk) | built against a mocked Matrix (Matrix is down until ~Nov 1); live dry run done; going live pending owner registration + repo secrets |
 
 ## Verified facts (M0)
 
@@ -30,7 +30,7 @@ Running log for Matrix Globe. Updated every session.
 
 - Per PLAN.md "Decisions of 2026-10-26" (overrides older text).
 - Builder/reviser default to the contributor model (own benchmark code);
-  external users' code must use the standard model — enforced in code.
+  external users' code must use the standard model â€” enforced in code.
 - Product ledger caps: `MAX_USD_TOTAL=100`, `MAX_USD_PER_RUN=0.60`,
   enforced before every call.
 
@@ -278,7 +278,7 @@ FinCode-30 tasks (30 = 10 dev + 20 test):
 | weighted_average_cost | test | hard |
 | xirr | test | expert |
 
-Next step (unchanged): M3 part 2 — pilot A/B/D on the 10 dev tasks,
+Next step (unchanged): M3 part 2 â€” pilot A/B/D on the 10 dev tasks,
 calibrate difficulty into the 35-70% single-shot band, tune prompts
 on dev only, freeze prompts (tag `prompts-v1`).
 
@@ -544,6 +544,91 @@ call was made this session; everything is tested with an
    thread (proven defect -> revision -> certificate), then let the
    15-minute schedule run; publish the curated showcase proofs and keep
    an eye on the desk's $5/day and product budget caps.
+
+## Open weights (Baseten) (2026-10-27, branch open-weights)
+
+Verified facts (live probes, 2026-10-27, this session):
+
+- Base URL `https://inference.baseten.co/v1`, OpenAI-compatible. Model id
+  exactly `meta-models/muse-spark-open-1026`; the key only works with it.
+- `response_format: json_schema` (strict) **works**: returned
+  `{"answer": "hi", "n": 3}` for a strict schema on the first attempt, so
+  the existing strict-schema path is used unchanged (no tool/JSON-mode
+  fallback was needed; both were also probed and work: `json_object` mode
+  and a single required function tool both returned correct results).
+- `reasoning_effort` **is accepted** (`medium` and `high` both answered;
+  the model always reasons and `usage` reports `reasoning_tokens` and
+  `cached_tokens`, which the existing usage parsing already handles).
+  The benchmark and desk use effort `medium` for the reviewer.
+- Price (Baseten model library, baseten.co/library/muse-spark-open,
+  verified 2026-10-27): **$1.25 input / $0.15 cached input / $4.25 output
+  per 1M tokens** - the same list price as Muse Spark 1.3 Standard, taken
+  from Baseten's published page (not estimated). Recorded in
+  `proof/config.py` PRICING for the open model.
+- Provider routing: model ids starting with `meta-models/` go to Baseten
+  (`BASETEN_API_KEY`, never logged); everything else stays on the Meta
+  Model API. The ledger records `provider` per call. Baseten spend has
+  its own cap `BASETEN_MAX_USD` (default 90) enforced before every call,
+  separate from `MAX_USD_TOTAL`. The proof loop now passes its model
+  explicitly to every role call, so loop-level model overrides (the open
+  conditions, the desk open stack) cannot silently fall back to the
+  client's default models - a mocked regression test covers this.
+- Incident, honestly: the first launch of this run resolved models from
+  the client's (Meta) settings, so ~$0.09 of calls went to the Meta
+  contributor model. It was stopped as soon as the ledger showed it,
+  all affected rows and bundles were discarded (never used), the root
+  cause was fixed (`proof/loop.py`, commit e9a8e52), routing was
+  re-verified live (ledger: provider baseten on every call), and only
+  then was the run restarted. All reported results below are Baseten-only.
+
+Conditions (test split, 1 seed, reviewer effort medium; bundles record
+provider `baseten` and the exact model id; `results/final_open/`):
+
+| scope | condition | provider | targets | fixed | damage | regressions | precision | $/target |
+|---|---|---|---|---|---|---|---|---|
+| PR | C_open | baseten | 24 | 17/18 (94%) | 0/6 | 0 | n/a | $0.1246 |
+| PR | E_open | baseten | 24 | 12/18 (67%) | 0/6 | 0 | n/a | $0.1425 |
+| PR | D_open | baseten | 24 | 17/18 (94%) | 0/6 | 0 | 0.40 | $0.0858 |
+| single | C_open | baseten | 80 | 54/60 (90%) | 0/20 | 0 | n/a | $0.0708 |
+| single | E_open | baseten | 80 | 41/60 (68%) | 0/20 | 0 | n/a | $0.0272 |
+| single | D_open | baseten | 80 | 57/60 (95%) | 0/20 | 0 | 0.64 | $0.0634 |
+
+Total Baseten spend for the run: $21.38 (955 ledger calls, all provider
+baseten; session live Baseten total including verification probes stays
+well under the $60 session cap and the $100 partner credit).
+
+Desk: `DESK_STACK=open` makes `proof/desk.py` use Spark Open for both
+reviewer and reviser (external code is fine on Baseten; it is not a
+training "contributor" mode). Default stack stays Wonder + Spark.
+Unit-tested (mocked) both ways.
+
+Honest comparison with the Wonder-based conditions (read-only from
+`C:\MatrixGlobe\results\final\` while that run was still in progress,
+plus the finished dev pilots in this file):
+
+- Wonder PR C (Spark self-check, 2 seeds): fixed 36/36, $0.0069/target -
+  the contributor-priced self-check remains far cheaper than any open
+  condition (C_open $0.1246/PR target) and, on PRs, just as effective.
+- Wonder PR E (free-text, 1 seed): fixed 17/18 (94%), $0.1957/target.
+  Spark Open free-text review is much weaker (67-68% fixed) though
+  cheaper per target; free text is where the open model loses most.
+- Wonder PR D (partial at read time, 12/24 rows): fixed 8/9, precision
+  0.27, $0.3362/target. D_open is cheaper ($0.0858/PR target) with
+  precision 0.40 (PR) / 0.64 (single) and a 94-95% fix rate. On dev
+  pilots Wonder D fixed everything it ran on; no finished Wonder
+  single-task final numbers existed yet at comparison time, so the
+  single-task comparison rests on the dev pilots (all conditions 100%).
+- Headline: a fully open-weights Matrix Globe works. Proof-gated review
+  is the strongest open condition and beats open free-text review by
+  ~27 points of fix rate; it does not beat Wonder on raw fix rate in
+  the pilots, and Wonder + contributor pricing still wins on cost for
+  self-check. The open stack's value is openness and price
+  predictability at a modest quality cost, not a new fix-rate record.
+
+Unit tests: 127 passed, 4 skipped (Docker live) with the
+`C:\MatrixGlobe` venv run from `C:\MatrixGlobe-open` (run after the
+routing fix; the open-conditions mocked tests assert every role call
+carries the open model id).
 
 ## Dollars spent
 
