@@ -10,6 +10,7 @@ Running log for Matrix Globe. Updated every session.
 | M1 — Sandbox + tasks + builder | done |
 | M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
 | M3 — FinCode-30 complete | done (30 tasks + 90 mutants validated; review-benchmark pilot v2 on dev; prompts frozen at tag `prompts-v1`) |
+| M4 — Matrix desk (@proofdesk) | built against a mocked Matrix (Matrix is down until ~Nov 1); live dry run done; going live pending owner registration + repo secrets |
 
 ## Verified facts (M0)
 
@@ -480,6 +481,70 @@ exceeds $0.45 per PR target, drop single-task D (saves $16) rather
 than any PR condition, and say so in the summary. If even PR D
 overruns, finish D's remaining PRs and drop single-task E next.
 
+## M4 results (2026-10-27, desk against a mocked Matrix)
+
+Matrix is down until its Neon quota resets (~Nov 1), so no Matrix API
+call was made this session; everything is tested with an
+`httpx.MockTransport` mock and a mocked LLM.
+
+- `proof/request_format.py`: parse/format the proof-request markdown
+  (`## Spec`, `## Code` with a ```python fence, `## Tests` with or
+  without the `(optional)` suffix), mirroring `formatProofRequest` in
+  the web `proof.ts`; round-trip tested. Limits enforced at parse:
+  Python only, code <= 20,000 chars.
+- `proof/matrix_client.py`: httpx client; anonymous feed/creation
+  reads, authenticated `proofdesk` review posts with attribution
+  headers (`X-Matrix-Provider: meta`, `X-Matrix-Model: <reviewer
+  model>`, `X-Matrix-Agent: Matrix Globe`); retries on 429/5xx with
+  backoff; the key is never logged and never appears in errors.
+- `proof/desk.py`: poll -> already-answered filter (`proofdesk` has a
+  top-level review) -> rejection (one polite `QUESTION` review for
+  private / non-Python / missing sections / oversized code) -> limits
+  (<= 20/day total, <= 3/day per requesting agent, <= $5/day from the
+  ledger, 1 per cycle when near a limit) -> `run_proof` mode D with
+  `initial_code` and origin `external` -> publish review (BUG_REPORT
+  with the combined proven-test file, or PRAISE), verified-revision
+  reply, and certificate reply (status line, `/proof?id=` link,
+  ```matrix-proof bundle + `sha256:`), exactly what the web
+  `readProofThread()` / `extractCertificate()` parse (covered by a
+  Python port of `extractCertificate` in the tests). State in
+  `state/desk.json` (processed ids, daily counters, last error).
+  External code runs only in the Docker sandbox; the desk refuses the
+  local sandbox unless `--dry-run` with a local file of our own. The
+  reviewer is `muse-wonder-1.0` and the reviser
+  `MODEL_BUILDER_EXTERNAL` (`muse-spark-1.3` Standard): desk LLM calls
+  carry origin `external`, so the contributor guard fires on any
+  `-contributor` model (tested through the real `LLMClient`).
+- `.github/workflows/desk.yml`: every 15 min + manual dispatch;
+  concurrency group so runs never overlap; exits successfully doing
+  nothing when `MODEL_API_KEY`/`PROOFDESK_KEY` is missing or Matrix is
+  unreachable/STALE (`GET /v1/agents?pageSize=1` must be 200 without
+  `X-Matrix-Cache: STALE`); builds the runner image; runs
+  `python -m proof.desk --once`; commits `state/desk.json` to the
+  `desk-state` branch (created if missing).
+- Unit tests: 119 passed, 4 skipped (Docker live). New coverage:
+  parsing, limits, skip-already-answered, the three posts and their
+  exact shapes, certificate parse-back, contributor guard for external
+  code, STALE/down early exit.
+- Live dry run (the session's only live spend, $0.225937 of the $2
+  cap; ledger $20.445912 -> $20.671849):
+  `examples/split_installments_request.md` (the `100.00 / 3 -> 99.99`
+  bug) produced 3 PROVEN claims, a verified revision (public 3/3,
+  proven 3/3, VERIFIED) and a certificate whose `sha256` re-verifies
+  from the pasted text. Would-be posts are in `docs/desk-dry-run.md`.
+
+### What remains for going live (when Matrix is back, ~Nov 1)
+
+1. Owner registers the Matrix agents `proofdesk`, `proof-builder` and
+   `muse-demo` (email codes), and classifies them `seeded` right after
+   registration so they never count as external adoption.
+2. Owner sets the repo secrets `MODEL_API_KEY` and `PROOFDESK_KEY`
+   (and `BUILDER_KEY` for showcase posts) with `gh secret set`.
+3. Enable/run the `desk` workflow once by hand, check the first real
+   thread (proven defect -> revision -> certificate), then let the
+   15-minute schedule run; publish the curated showcase proofs and keep
+   an eye on the desk's $5/day and product budget caps.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -514,4 +579,4 @@ the M3 part 4 section above (PR targets headline + single-task breadth,
 reviewer effort medium now actually delivered, D 1 seed, about $43.82
 of the $45 cap, with its cut rule); do not start it without a fresh
 session budget. No LLM call may touch test-split tasks outside that
-run. M4 (Matrix desk against a mocked Matrix) remains pending.
+run. M4 is built against a mocked Matrix (see the M4 section above); going live waits for Matrix to return (~Nov 1) and the owner tasks listed there.
