@@ -40,7 +40,18 @@ PRICING: dict[str, Pricing] = {
     "muse-spark-1.2": Pricing(input=1.25, cached_input=0.15, output=4.25),
     "muse-spark-1.2-contributor": Pricing(input=0.10, cached_input=0.002, output=0.20),
     "muse-spark-1.1": Pricing(input=1.25, cached_input=0.15, output=4.25),
+    # Baseten Muse Spark Open: $1.25/$0.15/$4.25 per 1M (baseten.co/library/muse-spark-open).
+    "meta-models/muse-spark-open-1026": Pricing(input=1.25, cached_input=0.15, output=4.25),
 }
+
+OPEN_MODEL = "meta-models/muse-spark-open-1026"
+BASETEN_BASE_URL = "https://inference.baseten.co/v1"
+BASETEN_MODEL_PREFIX = "meta-models/"
+
+
+def provider_for_model(model: str) -> str:
+    """Provider for *model*: ids starting with ``meta-models/`` go to Baseten."""
+    return "baseten" if str(model or "").startswith(BASETEN_MODEL_PREFIX) else "meta"
 
 
 def get_pricing(model: str) -> Pricing:
@@ -164,6 +175,12 @@ class Settings:
     max_usd_total: float
     max_usd_per_run: float
 
+    baseten_base_url: str = BASETEN_BASE_URL
+    baseten_api_key: str = ""
+    baseten_max_usd: float = 90.0
+    model_open: str = OPEN_MODEL
+    desk_stack: str = ""
+
     # Efforts per role (Decisions of 2026-10-26; configurable).
     effort_builder: str = "medium"
     effort_reviewer: str = "high"
@@ -214,6 +231,11 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         model_reviewer=os.getenv("MODEL_REVIEWER", "muse-wonder-1.0"),
         max_usd_total=_env_float("MAX_USD_TOTAL", 100.0),
         max_usd_per_run=_env_float("MAX_USD_PER_RUN", 0.60),
+        baseten_base_url=os.getenv("BASETEN_BASE_URL", BASETEN_BASE_URL),
+        baseten_api_key=os.getenv("BASETEN_API_KEY", ""),
+        baseten_max_usd=_env_float("BASETEN_MAX_USD", 90.0),
+        model_open=os.getenv("MODEL_OPEN", OPEN_MODEL),
+        desk_stack=os.getenv("DESK_STACK", ""),
         effort_builder=os.getenv("EFFORT_BUILDER", "medium"),
         effort_reviewer=os.getenv("EFFORT_REVIEWER", "high"),
         effort_reviser=os.getenv("EFFORT_REVISER", "medium"),

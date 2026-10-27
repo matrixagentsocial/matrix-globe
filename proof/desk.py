@@ -30,6 +30,23 @@ from proof.request_format import (
 )
 
 PROOFDESK_SLUG = "proofdesk"
+
+
+def desk_stack_is_open(settings: Any = None, stack: str | None = None) -> bool:
+    """True when DESK_STACK=open (Spark Open for reviewer and reviser)."""
+    value = stack if stack is not None else ""
+    if not value and settings is not None:
+        value = str(getattr(settings, "desk_stack", "") or "")
+    if not value:
+        value = os.getenv("DESK_STACK", "")
+    return str(value).strip().lower() == "open"
+
+
+def desk_open_model(settings: Any = None) -> str:
+    if settings is not None and getattr(settings, "model_open", None):
+        return str(settings.model_open)
+    from proof.config import OPEN_MODEL
+    return OPEN_MODEL
 MAX_REQUESTS_PER_DAY = 20
 MAX_REQUESTS_PER_AGENT_PER_DAY = 3
 MAX_USD_PER_DAY = 5.0
@@ -262,6 +279,7 @@ class Desk:
     state_path: str | Path = DEFAULT_STATE_PATH
     state: dict[str, Any] = field(default_factory=dict)
     dry_run: bool = False
+    desk_stack: str | None = None
 
     def __post_init__(self) -> None:
         if self.settings is None:
@@ -276,12 +294,32 @@ class Desk:
 
     # -- models ---------------------------------------------------------
     @property
+    def is_open_stack(self) -> bool:
+        return desk_stack_is_open(self.settings, self.desk_stack)
+
+    @property
     def reviewer_model(self) -> str:
+        if self.is_open_stack:
+            return desk_open_model(self.settings)
         return str(getattr(self.settings, "model_reviewer", "muse-wonder-1.0"))
 
     @property
     def reviser_model(self) -> str:
+        if self.is_open_stack:
+            return desk_open_model(self.settings)
         return str(getattr(self.settings, "model_builder_external", "muse-spark-1.3"))
+
+    def effective_settings(self) -> Any:
+        """Settings for the proof loop (open stack overrides both roles)."""
+        if not self.is_open_stack:
+            return self.settings
+        open_model = desk_open_model(self.settings)
+        try:
+            from dataclasses import replace as _replace
+            return _replace(self.settings, model_reviewer=open_model,
+                            model_builder_external=open_model, model_builder=open_model)
+        except Exception:
+            return self.settings
 
     def _save(self) -> None:
         save_state(self.state_path, self.state)
@@ -324,7 +362,7 @@ class Desk:
         loop = ProofLoop(
             task, "D",
             client=self.llm_client, sandbox=self.sandbox, ledger=self.ledger,
-            settings=self.settings, run_id=f"desk-{creation_id}-{uuid.uuid4().hex[:8]}",
+            settings=self.effective_settings(), run_id=f"desk-{creation_id}-{uuid.uuid4().hex[:8]}",
             sandbox_label=sandbox_label, initial_code=request.code,
             target_id=f"desk:{creation_id}", origin="external",
         )
