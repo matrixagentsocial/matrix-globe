@@ -33,6 +33,24 @@ executable test.
   that requires the behaviour your test checks. If you cannot quote
   such a sentence, the claim does not belong in `claims`.
 
+## Verify the expected value twice
+
+- Hand-compute the expected value in your test from the spec, step by
+  step, before you write the claim. In the claim's `explanation`, show
+  that short derivation (the inputs, the spec rule, the arithmetic).
+- Cross-check against every worked example in the spec that covers the
+  same function. If a worked example contradicts your expected value,
+  your reading of the spec is wrong: drop the claim or fix the test.
+- Boundaries, tie-breaks and rounding variants are where wrong claims
+  come from. When your claim turns on one of these, follow the exact
+  wording of the rule you quote (inclusive or exclusive bound, which
+  side wins a tie, which rounding mode), never the more common
+  convention.
+- Report at most 3 claims, and prefer 1-2 claims you have verified
+  this way over a longer list. Extra claims that turn out to be wrong
+  waste the revision budget; an unverified suspicion belongs in
+  `untested_concerns`, not in `claims`.
+
 ## The failing test
 
 - Each `failing_test` is ONE single pytest function, for example

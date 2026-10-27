@@ -9,7 +9,7 @@ Running log for Matrix Globe. Updated every session.
 | M0 — Gate + skeleton | done (Official Rules step pending; rules not yet published, tracked separately) |
 | M1 — Sandbox + tasks + builder | done |
 | M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
-| M3 — FinCode-30 complete | part 1 done (tasks + reviewer fixes; zero LLM calls); part 2 pending (pilot A/B/D on dev, calibrate, freeze `prompts-v1`) |
+| M3 — FinCode-30 complete | done (30 tasks + 90 mutants validated; review-benchmark pilot v2 on dev; prompts frozen at tag `prompts-v1`) |
 
 ## Verified facts (M0)
 
@@ -281,6 +281,100 @@ Next step (unchanged): M3 part 2 — pilot A/B/D on the 10 dev tasks,
 calibrate difficulty into the 35-70% single-shot band, tune prompts
 on dev only, freeze prompts (tag `prompts-v1`).
 
+## M3 part 3 results (2026-10-27, review benchmark)
+
+Per the PLAN.md redesign of 2026-10-27 (replaces A-E): targets are 3
+mutants + 1 clean per task; conditions R (no review), C (Spark
+self-check), E (Wonder free-text review), D (Matrix Globe proof-gated
+review), B (Wonder max regenerates, one run per task).
+
+- Cost attribution fix: `bench/run_bench.py` attributed cost by time
+  window, so concurrent bench processes mixed costs. It now attributes
+  strictly by `run_id` from the ledger entries (`cost_for_run`), with a
+  regression test (`tests/test_cost_attribution.py`) covering
+  interleaved entries from two concurrent runs. The bundle gained a
+  `target` field (money fields stay 6-decimal strings; the fixture hash
+  in `tests/fixtures/bundle_fixture.sha256` was regenerated).
+- Mutants: 90 mutants (3 per task x 30 tasks) in
+  `bench/tasks/<id>/mutants/{m1,m2,m3}.py` + `mutants.json`, each a
+  single plausible local change to `reference.py`.
+  `bench/validate_tasks.py` now checks for every mutant: differs from
+  the reference, passes all public tests, fails at least one hidden
+  test. Green for all 30 tasks, on dev and test splits (test split used
+  for validation only, as required).
+- Runner: `bench/run_bench.py --cond R|B|C|D|E --split dev|test
+  --targets mutants|clean|all --limit N --seeds N --sandbox
+  local|docker`, one JSONL row per (task, target, seed) with hidden
+  before/after, fixed, regressions (per hidden test), damaged, claim
+  counts, usd/reviewer_usd by run_id, status and bundle path.
+  `bench/pilot_report.py` writes the per-condition summary (fixed rate
+  on mutants, damage rate on clean, regressions, precision VALID/PROVEN,
+  $/target).
+
+### Pilot v2 (dev, 1 seed, `results/pilot/v2/`)
+
+| condition | targets | fixed on mutants | damage on clean | regressions | precision | $/target |
+|---|---|---|---|---|---|---|
+| R | 40 | 0/30 | 0/10 | 0 | n/a | $0.0000 |
+| D (high) | 12 | 9/9 | 0/3 | 0 | 0.48 | $0.2355 |
+| D (medium) | 8 | 6/6 | 0/2 | 0 | 0.25 | $0.3941 |
+| E (medium) | 12 | 9/9 | 0/3 | 0 | n/a | $0.0869 |
+| C | 40 | 30/30 | 0/10 | 0 | n/a | $0.0045 |
+| B | 10 tasks | regen 10/10 | n/a | 0 | n/a | $0.1733 |
+
+Coverage and effort, honestly: D ran on 5 of 10 dev tasks (20/40
+targets), E on 3 of 10 (12/40 targets). Reviewer effort started at
+high; the first 10 D targets averaged $0.236 per target, i.e. below
+the $0.30 switch threshold, so the switch rule did not trigger. The
+rest of D and all of E were still run at medium to keep this
+session's live spend under $10 (projected cost at high was more than
+twice the remaining budget). Session live spend: $8.93 of the $10
+cap (ledger $5.6343 at session start, $14.5675 at the end, including
+$0 from R). Headline: on dev, every reviewing/regenerating condition
+fixed every mutant it ran on with zero damage; they differ by cost,
+not fix rate. The proof rule's measured value on this pilot is claim
+precision, and Spark self-check (C) is strikingly cheap. The final
+test-split run must confirm or refute this; no test targets were run
+except validation.
+
+### Prompt changes (dev pattern, frozen at `prompts-v1`)
+
+Pattern in the D data: the reviewer proposed 1.75 claims per target
+at high (precision 0.48) and 3.38 at medium (precision 0.25). Almost
+every unconfirmed claim misderived an expected value on a boundary,
+tie-break or rounding variant. `proof/roles/prompts/reviewer.md`
+gained a "Verify the expected value twice" section: hand-compute the
+expected value and show the derivation in the claim, cross-check the
+spec's worked examples, follow the quoted rule's exact boundary /
+tie-break / rounding wording, report at most 3 claims and prefer
+1-2 verified ones. Not re-run live this session (budget); its effect
+is a hypothesis for the final run, not a measured result.
+
+### Budget plan for the final run (test split, at most $45)
+
+Measured dev costs per target: C $0.0045, E (medium) $0.087, B $0.173
+per task, D $0.24 (easy dev tasks, high) to $0.39 (hard dev tasks,
+medium). Test tasks are the harder 20, so plan D at $0.30 per target
+at effort medium and expect the tuned prompt to cut round-2 claims.
+
+Recommended final run (reviewer effort medium for D and E, 1 seed
+unless stated):
+
+| condition | scope | est. cost |
+|---|---|---|
+| R | 80 targets x 2 seeds | $0 |
+| C | 80 targets x 2 seeds | $0.72 |
+| E (medium) | 80 targets x 2 seeds | $13.90 |
+| D (medium) | 80 targets x 1 seed | $24.00 |
+| B | 20 tasks x 1 | $3.46 |
+| **total** | | **$42.08** |
+
+D gets 1 seed (a second seed alone would add about $24 and break
+the $45 cap); C, E and R get 2 seeds because they are cheap. If the
+tuned reviewer prompt does not bring D under $0.30 per target on the
+first 10 test targets, drop D's remaining tasks rather than a second
+condition, and say so in the summary.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -310,4 +404,6 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-M3 part 2 — pilot A/B/D on the 10 dev tasks, calibrate difficulty into the 35-70% single-shot band (the 6 original dev tasks are too easy; the 4 new dev tasks are the hard ones), tune prompts on dev only, freeze prompts (tag `prompts-v1`). First, in a fresh session with budget, run one live condition B (Wonder, effort max) on one dev task to measure its cost, which M2 could not do within its session cap.
+M4 - Matrix desk against a mocked Matrix (unit tests), per the redesign note that Matrix is down until its Neon quota resets. The final test-split benchmark run follows the budget plan in the M3 part 3 section above (reviewer effort medium, D 1 seed, C/E/R 2 seeds, B once per task, about \ of the \ cap); do not start it without a fresh session budget.
+
+After M3 part 3 the product ledger is \.5675: this session spent \.9332 of its \ cap on pilot v2 (D high \.8262, D medium \.1524, E medium \.0433, C \.1781, B \.7333, R \). Unit tests: 79 passed, 4 skipped. Uncommitted leftovers from the stopped M3 part 2 session (extra rows in results/pilot/condDhigh_dev_pilot.jsonl and bundles in results/pilot/bundles_Dhigh/) were left untouched.
