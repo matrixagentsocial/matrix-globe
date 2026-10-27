@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from proof.config import Settings, load_settings
+from proof.config import Settings, load_settings, provider_for_model
 
 # Anchored to the repo root so the ledger does not depend on the cwd.
 DEFAULT_LEDGER_PATH = Path(__file__).resolve().parents[1] / "state" / "ledger.jsonl"
@@ -38,12 +38,14 @@ class Ledger:
     # -- writing ------------------------------------------------------
     def append(self, entry: dict[str, Any]) -> dict[str, Any]:
         """Append one call record and return the stored record."""
+        provider = entry.get("provider") or provider_for_model(str(entry.get("model") or ""))
         record: dict[str, Any] = {
             "ts": entry.get("ts")
             or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "run_id": entry.get("run_id"),
             "role": entry.get("role"),
             "model": entry.get("model"),
+            "provider": provider,
             "effort": entry.get("effort"),
             "input_tokens": int(entry.get("input_tokens", 0) or 0),
             "cached_tokens": int(entry.get("cached_tokens", 0) or 0),
@@ -69,6 +71,7 @@ class Ledger:
         reasoning_tokens: int,
         usd: float,
         ts: str | None = None,
+        provider: str | None = None,
     ) -> dict[str, Any]:
         return self.append(
             {
@@ -82,6 +85,7 @@ class Ledger:
                 "output_tokens": output_tokens,
                 "reasoning_tokens": reasoning_tokens,
                 "usd": usd,
+                "provider": provider or provider_for_model(model),
             }
         )
 
@@ -100,6 +104,14 @@ class Ledger:
 
     def total_usd(self) -> float:
         return sum(float(row.get("usd", 0.0) or 0.0) for row in self.entries())
+
+    def total_usd_by_provider(self, provider: str) -> float:
+        total = 0.0
+        for row in self.entries():
+            row_provider = row.get("provider") or provider_for_model(str(row.get("model") or ""))
+            if row_provider == provider:
+                total += float(row.get("usd", 0.0) or 0.0)
+        return total
 
     def run_usd(self, run_id: str | None) -> float:
         if run_id is None:
@@ -127,6 +139,9 @@ class Ledger:
         *,
         max_usd_total: float | None = None,
         max_usd_per_run: float | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        baseten_max_usd: float | None = None,
     ) -> None:
         """Raise :class:`HardCapExceeded` if either cap has been reached.
 
@@ -141,12 +156,32 @@ class Ledger:
             if max_usd_per_run is None
             else max_usd_per_run
         )
-        total = self.total_usd()
-        if total >= cap_total:
-            raise HardCapExceeded(
-                f"Hard cap reached: total spend ${total:.4f} >= "
-                f"MAX_USD_TOTAL ${cap_total:.4f}; refusing further calls"
+        resolved_provider = provider or (provider_for_model(model) if model else None)
+        if resolved_provider == "baseten":
+            cap_baseten = (
+                getattr(self._settings, "baseten_max_usd", 90.0)
+                if baseten_max_usd is None else baseten_max_usd
             )
+            btotal = self.total_usd_by_provider("baseten")
+            if btotal >= cap_baseten:
+                raise HardCapExceeded(
+                    f"Hard cap reached: Baseten spend ${btotal:.4f} >= "
+                    f"BASETEN_MAX_USD ${cap_baseten:.4f}; refusing further calls"
+                )
+        elif resolved_provider == "meta":
+            total = self.total_usd_by_provider("meta")
+            if total >= cap_total:
+                raise HardCapExceeded(
+                    f"Hard cap reached: total spend ${total:.4f} >= "
+                    f"MAX_USD_TOTAL ${cap_total:.4f}; refusing further calls"
+                )
+        else:
+            total = self.total_usd()
+            if total >= cap_total:
+                raise HardCapExceeded(
+                    f"Hard cap reached: total spend ${total:.4f} >= "
+                    f"MAX_USD_TOTAL ${cap_total:.4f}; refusing further calls"
+                )
         if run_id is not None:
             run_total = self.run_usd(run_id)
             if run_total >= cap_run:

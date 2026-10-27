@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from proof.config import Settings, compute_cost_from_usage, extract_usage_fields, get_pricing, load_settings
+from proof.config import Settings, compute_cost_from_usage, extract_usage_fields, get_pricing, load_settings, provider_for_model
 from proof.ledger import Ledger
 
 DEFAULT_MAX_TOKENS = 8192
@@ -139,6 +139,7 @@ class LLMClient:
         self,
         *,
         client: Any = None,
+        baseten_client: Any = None,
         ledger: Ledger | None = None,
         settings: Settings | None = None,
         sleep: Any = None,
@@ -146,6 +147,9 @@ class LLMClient:
         self._settings = settings or load_settings()
         self._ledger = ledger if ledger is not None else Ledger(settings=self._settings)
         self._sleep = sleep or time.sleep
+        self._client_injected = client is not None
+        self._baseten_client_injected = baseten_client is not None
+        self._baseten_client = baseten_client
         if client is not None:
             self._client = client
         else:
@@ -156,6 +160,26 @@ class LLMClient:
                 api_key=self._settings.api_key,
             )
 
+    def _client_for_provider(self, provider: str) -> Any:
+        """Return the client for *provider* (Baseten for meta-models/* ids)."""
+        if provider != "baseten":
+            return self._client
+        if self._baseten_client is not None:
+            return self._baseten_client
+        if self._client_injected and not self._baseten_client_injected:
+            # Single injected (mocked) client: serve both providers from it.
+            return self._client
+        key = getattr(self._settings, "baseten_api_key", "") or ""
+        if not key:
+            raise LLMError("BASETEN_API_KEY is not set; cannot call Baseten models")
+        from openai import OpenAI
+
+        self._baseten_client = OpenAI(
+            base_url=getattr(self._settings, "baseten_base_url", "https://inference.baseten.co/v1"),
+            api_key=key,
+        )
+        return self._baseten_client
+
     @property
     def ledger(self) -> Ledger:
         return self._ledger
@@ -164,11 +188,12 @@ class LLMClient:
     def settings(self) -> Settings:
         return self._settings
 
-    def _call_with_retries(self, kwargs: dict[str, Any]) -> Any:
+    def _call_with_retries(self, kwargs: dict[str, Any], client: Any = None) -> Any:
+        active = client if client is not None else self._client
         last_exc: BaseException | None = None
         for attempt in range(MAX_ATTEMPTS):
             try:
-                return self._client.chat.completions.create(**kwargs)
+                return active.chat.completions.create(**kwargs)
             except Exception as exc:  # noqa: BLE001 - re-raised when not retryable
                 last_exc = exc
                 if not _is_retryable(exc) or attempt == MAX_ATTEMPTS - 1:
@@ -187,6 +212,7 @@ class LLMClient:
             run_id=run_id,
             role=role,
             model=model,
+            provider=provider_for_model(model),
             effort=effort,
             input_tokens=fields["input_tokens"],
             cached_tokens=fields["cached_tokens"],
@@ -232,8 +258,12 @@ class LLMClient:
                 f"{resolved_model!r}; use the standard model for external code"
             )
 
-        # Hard caps are enforced BEFORE the call.
-        self._ledger.check_caps(run_id)
+        provider = provider_for_model(resolved_model)
+        # Hard caps are enforced BEFORE the call (Baseten has its own cap).
+        try:
+            self._ledger.check_caps(run_id, provider=provider, model=resolved_model)
+        except TypeError:
+            self._ledger.check_caps(run_id)
 
         schema_name: str | None = None
         json_schema: dict[str, Any] | None = None
@@ -258,7 +288,8 @@ class LLMClient:
                 },
             }
 
-        response = self._call_with_retries(kwargs)
+        active_client = self._client_for_provider(provider)
+        response = self._call_with_retries(kwargs, client=active_client)
         content, finish_reason = self._extract_content(response)
         self._record(
             run_id=run_id, role=role, model=resolved_model,
@@ -293,8 +324,11 @@ class LLMClient:
             repair_kwargs = dict(kwargs)
             repair_kwargs["messages"] = repair_messages
             # Re-check caps before the repair call as well.
-            self._ledger.check_caps(run_id)
-            repair_response = self._call_with_retries(repair_kwargs)
+            try:
+                self._ledger.check_caps(run_id, provider=provider, model=resolved_model)
+            except TypeError:
+                self._ledger.check_caps(run_id)
+            repair_response = self._call_with_retries(repair_kwargs, client=active_client)
             repair_content, repair_finish = self._extract_content(repair_response)
             self._record(
                 run_id=run_id, role=role, model=resolved_model,
