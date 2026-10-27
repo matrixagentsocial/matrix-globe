@@ -375,6 +375,111 @@ tuned reviewer prompt does not bring D under $0.30 per target on the
 first 10 test targets, drop D's remaining tasks rather than a second
 condition, and say so in the summary.
 
+## M3 part 4 results (2026-10-27, PR targets + pilot v3)
+
+- Housekeeping: `bench/pilot_report.py` now writes reports itself as
+  UTF-8 (`--out`, `--title`) instead of relying on shell redirection
+  (the v2 summary was UTF-16 from a PowerShell redirect; regenerated).
+  Condition R now reports status UNREVIEWED (new loop mode `R`); the
+  report writer also maps R rows to UNREVIEWED in older files.
+- PR targets (`bench/prs.py` + `bench/prs/<pr_id>/`): a PR groups 3
+  same-split tasks into one package (`task_a.py`/`task_b.py`/`task_c.py`
+  = the tasks' references, `spec.md` = the three specs under module
+  headings, `pr.json`, and the union of public/hidden tests rewritten to
+  import from their module, duplicate test names suffixed). Built 3 dev
+  PRs (9 of 10 dev tasks; `vat_invoice` left out) and 6 test PRs (18 of
+  20 test tasks; `weighted_average_cost`, `xirr` left out). Per PR:
+  3 buggy variants (each replaces a different module with that task's
+  first validated mutant) + 1 clean. All 9 PRs validate like the
+  mutants: buggy passes every public test and fails at least one hidden
+  test, clean passes everything (`.venv\Scripts\python bench\prs.py
+  --build --validate`). Building/validating test PRs used no LLM calls.
+- Loop + bench: every condition works on a PR package. The reviewer and
+  reviser see the whole package and the concatenated spec; claim tests
+  may import from any module and are proven against all modules
+  (`proof/proofrule.py: prove_claims_modules`); fixes may touch any
+  module; condition B regenerates all three modules. `run_bench.py`
+  gains `--targets prs` (plus `--prs`, `--pr-target`). Single-task
+  targets keep working. Mocked-LLM unit tests cover R/C/D/E/B on a real
+  dev PR (88 passed, 4 skipped overall).
+- Effort bug found by v3 (important): `--reviewer-effort` never reached
+  the reviewer call, so the reviewer always ran at effort `high`. The
+  ledger proves the same bug affected pilot v2: rows labelled
+  D (medium) / E (medium) record reviewer effort `high`, so v2's
+  high-vs-medium rows are not an effort comparison and their costs are
+  high-effort costs. Fixed (`proof/loop.py` now passes the settings
+  effort to every reviewer call, with a mocked test); all v3 E/D rows
+  record reviewer effort `medium` in the ledger. The aborted first v3
+  E attempt at the wrong effort and its polluted rerun wasted about
+  $1.66 of this session's $6 cap; the published v3 rows are clean
+  reruns with unique run ids.
+
+### Pilot v3 (dev PRs only, 1 seed, `results/pilot/v3/`)
+
+| condition | targets | fixed on buggy | damage on clean | regressions | precision | $/target |
+|---|---|---|---|---|---|---|
+| R | 12 | 0/9 | 0/3 | 0 | n/a | $0.0000 |
+| C | 12 | 9/9 | 0/3 | 0 | n/a | $0.0085 |
+| E (Wonder medium) | 12 | 9/9 | 0/3 | 0 | n/a | $0.1570 |
+| D (Wonder medium) | 7 of 12 | 5/5 | 0/2 | 0 | 0.28 | $0.3189 |
+
+D claims on its 7 targets: proposed 19, PROVEN 18, UNPROVEN discarded 1,
+INVALID 0, UNCONFIRMED 13, VALID 5 (precision 5/18 = 0.28). The reviser
+contested 0 of the 13 UNCONFIRMED claims and accepted all 13; two D
+targets end PARTIAL because accepted UNCONFIRMED claim tests still fail
+on code that passes every hidden test. D stopped at 7 of 12 targets
+when the session spend reached $5.8784 of the $6 cap (missing:
+pr_dev_2 clean/buggy_b/buggy_c, pr_dev_3 buggy_b/buggy_c). Total live
+spend this session: $5.8784; product ledger now $20.4459. No LLM call
+touched a test-split task (pilot ran `--split dev` only).
+
+### Honest reading of v2 + v3
+
+In v2 (single-function mutants) and again in v3 (PR-sized packages,
+where each bug hides in one of three modules among ~56 hidden tests),
+every reviewing condition fixed every buggy target it ran on, with zero
+damage to clean code and zero regressions. Making the target bigger did
+not separate the conditions on fix rate. What separates them is cost
+(C is 18x cheaper than E and 37x cheaper than D per PR target) and,
+for D, claim quality: the proof rule does not raise the fix rate here,
+and D's claim precision got worse on packages (0.28 in v3 versus 0.48
+in v2, with the reviser contesting none of the 13 unconfirmed claims,
+so the proof gate's filtering value is currently spent on claims the
+reviser waves through anyway). Nothing yet shows that proof-gated
+review beats Spark self-check or free-text review on correctness; the
+only measured D-specific outputs are an auditable claim trail and its
+precision number. Separately, v2's effort labels were wrong (see the
+effort bug above), so no high-versus-medium conclusion can be drawn
+from v2 at all.
+
+### Recommended design for the final run (within $45)
+
+Run both, with PR targets as the headline (they are the realistic
+setting and the demo story) and single-task targets for breadth.
+Reviewer effort medium (now actually delivered) for D and E, 1 seed
+for the Wonder conditions, 2 seeds for the cheap ones. Estimates use
+v3 PR costs and v2 single-task costs marked up for harder test tasks;
+v2's D/E figures were measured at effort high, so medium should not
+exceed them.
+
+| scope | condition | targets x seeds | est. cost |
+|---|---|---|---|
+| PR test (6 PRs) | R | 24 x 2 | $0 |
+| PR test | C | 24 x 2 | $0.58 |
+| PR test | E (medium) | 24 x 1 | $5.28 |
+| PR test | D (medium) | 24 x 1 | $10.80 |
+| PR test | B (regen, per PR) | 6 x 1 | $3.00 |
+| single-task test (20 tasks) | R | 80 x 2 | $0 |
+| single-task test | C | 80 x 2 | $0.96 |
+| single-task test | E (medium) | 80 x 1 | $7.20 |
+| single-task test | D (medium) | 80 x 1 | $16.00 |
+| **total** | | | **$43.82** |
+
+Cut rule: measure D's real $/target on the first 2 test PRs; if it
+exceeds $0.45 per PR target, drop single-task D (saves $16) rather
+than any PR condition, and say so in the summary. If even PR D
+overruns, finish D's remaining PRs and drop single-task E next.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -404,6 +509,9 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-M4 - Matrix desk against a mocked Matrix (unit tests), per the redesign note that Matrix is down until its Neon quota resets. The final test-split benchmark run follows the budget plan in the M3 part 3 section above (reviewer effort medium, D 1 seed, C/E/R 2 seeds, B once per task, about \ of the \ cap); do not start it without a fresh session budget.
-
-After M3 part 3 the product ledger is \.5675: this session spent \.9332 of its \ cap on pilot v2 (D high \.8262, D medium \.1524, E medium \.0433, C \.1781, B \.7333, R \). Unit tests: 79 passed, 4 skipped. Uncommitted leftovers from the stopped M3 part 2 session (extra rows in results/pilot/condDhigh_dev_pilot.jsonl and bundles in results/pilot/bundles_Dhigh/) were left untouched.
+The final test-split benchmark run follows the recommended design in
+the M3 part 4 section above (PR targets headline + single-task breadth,
+reviewer effort medium now actually delivered, D 1 seed, about $43.82
+of the $45 cap, with its cut rule); do not start it without a fresh
+session budget. No LLM call may touch test-split tasks outside that
+run. M4 (Matrix desk against a mocked Matrix) remains pending.
