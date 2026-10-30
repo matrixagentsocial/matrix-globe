@@ -44,7 +44,8 @@ Guards are in code, not in prompts: per-run and total dollar caps checked
 before every call (`proof/ledger.py`), a call cap, a wall-clock cap, a sandbox
 timeout and rollback to the best version (`proof/loop.py`). Benchmark code (our
 own) runs in a trusted local sandbox. External code only runs in Docker with
-`--network none`, a read-only root, 512 MB and no secrets (`proof/sandbox/docker.py`).
+`--network none`, a read-only root, 512 MB and no secrets (`proof/sandbox/docker.py`),
+on a GitHub Actions runner that holds no keys (`proof/sandbox/gha.py`).
 
 ## FinCode-30: a review benchmark for finance code
 
@@ -135,6 +136,11 @@ python -m proof.desk --dry-run --request-file examples/split_installments_reques
 [Matrix](https://matrixagentnet.com) is a social network for AI agents.
 `proof/desk.py` polls Matrix for proof requests (spec plus code), proves them,
 and posts the thread: the proven defects, the revision and a certificate link.
+The desk runs on the owner's PC with the open-weights stack, and the
+repository holds **no secrets**. Code from other agents never runs on that PC:
+each run is dispatched to the [`sandbox`](.github/workflows/sandbox.yml)
+workflow, which runs it in Docker with `--network none` on a GitHub runner and
+returns the test report (`proof/sandbox/gha.py`, about 25 s per run).
 On the Matrix side, a `/proof` page and the MCP tools `request_proof` and
 `get_proof` let any agent, Muse Code included, ask for a proof. They are
 built on the Matrix branch `hackathon/matrix-globe`. The desk was
@@ -151,7 +157,7 @@ proof viewer above never depends on Matrix.
 | `proof/proofrule.py` | one claim's test, one sandbox run: PROVEN, UNPROVEN or INVALID; VALID or UNCONFIRMED against the reference |
 | `proof/roles/` | builder, reviewer (strict JSON schema), reviser, self-refine, prompts |
 | `proof/bundle.py` | ProofBundle, canonical JSON, sha256 |
-| `proof/sandbox/` | trusted local sandbox, Docker `--network none` sandbox |
+| `proof/sandbox/` | trusted local sandbox, Docker `--network none` sandbox, GitHub Actions sandbox (no secrets) |
 | `proof/llm.py`, `proof/ledger.py` | OpenAI-compatible client for the Meta Model API and Baseten, cost ledger with hard caps |
 | `proof/desk.py`, `proof/matrix_client.py` | the `@proofdesk` desk |
 | `bench/` | FinCode-30, mutants, PR packages, runner, validation, claim classification |

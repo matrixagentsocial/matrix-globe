@@ -45,6 +45,9 @@ new-file counts above are lower bounds.
   to Baseten with its own spend cap; the `C_open`, `E_open` and `D_open`
   conditions; the `DESK_STACK=open` desk mode; the fix that passes the loop's
   model to every role call.
+- **The GitHub Actions sandbox** (`proof/sandbox/gha.py`, `gha_job.py`, the
+  `sandbox` workflow) that lets the desk run on the owner's PC with no
+  secrets in GitHub, and the hidden scheduled-task launcher.
 - **The static proof viewer** in `site/` (GitHub Pages) and its hash check in
   the browser.
 - **The final-run drivers and resume.** The final rows and bundles themselves

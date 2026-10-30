@@ -541,8 +541,9 @@ call was made this session; everything is tested with an
 1. Owner registers the Matrix agents `proofdesk`, `proof-builder` and
    `muse-demo` (email codes), and classifies them `seeded` right after
    registration so they never count as external adoption.
-2. Owner sets the repo secrets `MODEL_API_KEY` and `PROOFDESK_KEY`
-   (and `BUILDER_KEY` for showcase posts) with `gh secret set`.
+2. ~~Owner sets the repo secrets~~ Superseded 2026-10-30: no repo secrets;
+   the desk runs on the owner's PC and untrusted code runs in the
+   secret-less `sandbox` workflow (see "Session 2026-10-30, desk").
 3. Enable/run the `desk` workflow once by hand, check the first real
    thread (proven defect -> revision -> certificate), then let the
    15-minute schedule run; publish the curated showcase proofs and keep
@@ -736,6 +737,33 @@ nothing on the Matrix side can go live yet. Zero LLM calls this session.
   `run.usage`, Billing ~1.5-2x).
 - Tests: 130 passed, 4 skipped (live Docker). CI and Pages green.
 
+## Session 2026-10-30, desk on the owner's PC (PLAN.md section 9)
+
+- **New sandbox backend** `proof/sandbox/gha.py` + `gha_job.py` + workflow
+  `sandbox.yml`: the desk packs files, command and timeout into one
+  zlib+base64 `workflow_dispatch` input (refused above 60,000 chars), finds its
+  run by a random nonce in `run-name`, waits, and downloads the
+  `sandbox-result` artifact with `gh`. The job has `contents: read` only and no
+  secrets; inputs reach it only through env variables; it accepts only
+  `python -m pytest ...`, relative paths and timeouts up to 60 s, and runs them
+  with the existing `DockerSandbox`. GitHub failures raise `SandboxInfraError`
+  (desk posts nothing, retries next poll); a code timeout is a normal result.
+- **Desk CLI**: `--sandbox gha|docker|local` (`--once` defaults to `gha` and
+  refuses `local`), `--stack meta|open`; the key check asks for
+  `BASETEN_API_KEY` on the open stack instead of `MODEL_API_KEY`. The bundle's
+  `sandbox` field comes from the sandbox's `label`.
+- Removed `.github/workflows/desk.yml` (secrets-based, desk-state branch).
+  Added `scripts/windows/desk-once.vbs` (hidden, `--stack open --sandbox gha`,
+  log in `state/desk.log`) and `register-desk-task.ps1` (task
+  `MatrixGlobeDesk`, every 10 min, no overlap). **Not registered yet**: it
+  needs `PROOFDESK_KEY`, which needs Matrix.
+- Live checks: allocate_ratios reference 23/23 pass and mutant m1 fails exactly
+  its hidden tie-break test through the GitHub sandbox (~25 s per run); full
+  desk dry run with the open stack + GitHub sandbox on
+  `examples/split_installments_request.md`: 3 PROVEN, VERIFIED, 14 sandbox
+  runs, $0.183898 Baseten (`docs/desk-dry-run-open-gha.md`). No Meta spend.
+- Tests: 145 passed, 4 skipped (15 new in `tests/test_gha_sandbox.py`).
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -765,12 +793,12 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-Done without Matrix: viewer, classification, README, authorship page. Next:
-desk changes from PLAN.md section 9 (desk on the owner's PC with
-`DESK_STACK=open`, untrusted code in a secret-less Actions Docker job). When
-Matrix is back (~Nov 1; check `/v1/health/database` for `initialized=true`):
-provision the agents as seeded service agents, deploy `/proof` + MCP, publish
-showcase proofs, record the Muse Code <-> Matrix demo. Then the video (PLAN
-section 8; the results section should use the open-weights headline) and the
-submission by Nov 4 20:00. Meta credits: about $40 left, reserved for the demo
-and judging; Baseten about $79; Modal $100 unused (needs `modal token new`).
+Done without Matrix: viewer, classification, README, authorship page, desk on
+the owner's PC with the secret-less GitHub sandbox. When Matrix is back (~Nov 1;
+check `/v1/health/database` for `initialized=true`): provision `proofdesk`,
+`proof-builder`, `muse-demo` as seeded service agents (keys only in the local
+`.env`), run `scripts/windows/register-desk-task.ps1`, deploy `/proof` + MCP,
+publish showcase proofs, record the Muse Code <-> Matrix demo. Then the video
+(PLAN section 8, open-weights headline) and the submission by Nov 4 20:00.
+Meta credits: about $40 left, reserved for the demo and judging; Baseten about
+$79; Modal $100 unused (needs `modal token new`).
