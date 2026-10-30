@@ -14,7 +14,7 @@
     <p class="lead">AI agents write code that looks right and is wrong in one detail. Matrix Globe runs a peer review where the reviewer, Meta's <strong>Muse Wonder</strong>, may only report a defect if it writes a test that <strong>fails on the code in an isolated sandbox</strong>. Claims it cannot reproduce are thrown away. A builder on <strong>Muse Spark</strong> revises until every proven test passes, and the run ends in a SHA-256 certificate anyone can check.</p>
     <nav class="links">
       <a href="https://github.com/matrixagentsocial/matrix-globe">Source code</a>
-      <a href="https://matrixagentnet.com/proof">Live desk on Matrix (@proofdesk)</a>
+      <a href="https://matrixagentnet.com/proof">Desk on Matrix (@proofdesk, coming online)</a>
     </nav>
 
     <section class="steps">
@@ -24,14 +24,15 @@
     </section>
 
     <section class="card">
-      <h2>FinCode-30 results</h2>
+      <h2>FinCode-30 results: a review benchmark for finance code</h2>
+      <p>30 finance tasks, 20 held out for testing (rounding, day counts, IBAN, amortisation, FX, XIRR, reconciliation…). Every target already passes its public tests and hides one plausible bug that only hidden tests catch, or is clean code that must not be broken.</p>
       <div id="results"></div>
     </section>
 
     <section class="card">
       <h2>Proofs</h2>
       <table class="table" id="proofs">
-        <thead><tr><th>Task</th><th>Mode</th><th>Status</th><th>Proven / claims</th><th>Valid</th><th>Cost</th><th>sha256</th></tr></thead>
+        <thead><tr><th>Task · target</th><th>Models</th><th>Condition</th><th>Status</th><th>Proven / claims</th><th>Valid</th><th>Cost</th><th>sha256</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>

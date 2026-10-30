@@ -45,5 +45,11 @@ h2 { font-size: 1.1rem; margin: 0 0 12px; color: var(--green); font-family: ui-m
 .bar-row { display: grid; grid-template-columns: minmax(160px, 1.2fr) 2fr minmax(150px, 1fr); gap: 10px; align-items: center; margin: 8px 0; font: 12px ui-monospace, Menlo, Consolas, monospace; }
 .bar-track { background: #000; border-radius: 999px; height: 12px; }
 .bar { background: var(--green); height: 12px; border-radius: 999px; box-shadow: 0 0 12px var(--green); }
+h3 { font: 13px ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); margin: 20px 0 6px; }
+.headline { color: var(--text) !important; font-size: 16px; border-left: 3px solid var(--green); padding-left: 12px; }
+.results tr.ours td { color: var(--text); background: rgba(0, 255, 65, .06); }
+.results td.ok { color: var(--green); }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+.filters select { background: #000; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font: 12px ui-monospace, Menlo, Consolas, monospace; }
 footer { margin-top: 32px; }
 @media (max-width: 640px) { .bar-row { grid-template-columns: 1fr; } }
