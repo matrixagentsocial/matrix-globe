@@ -73,6 +73,7 @@ class DockerSandbox(Sandbox):
     """Docker sandbox for untrusted code (GitHub Actions / desk)."""
 
     report_path = "/out/report.xml"
+    label = "docker:python:3.11-slim --network none"
 
     def __init__(self, image: str = DEFAULT_IMAGE) -> None:
         self.image = image

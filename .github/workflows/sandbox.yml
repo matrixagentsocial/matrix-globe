@@ -1,0 +1,47 @@
+name: sandbox
+# One run of untrusted code for the proof desk (proof/sandbox/gha.py).
+# The desk runs on the owner's PC and dispatches this workflow. The job holds
+# NO secrets: it runs the files in Docker (--network none, read-only root,
+# 512 MB, uid 1000) and uploads the result. Inputs reach the job only through
+# env variables, never pasted into a shell line.
+run-name: sandbox ${{ inputs.nonce }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      nonce:
+        description: "Random id the desk uses to find this run"
+        required: true
+        type: string
+      payload:
+        description: "zlib + base64 JSON: files, cmd, timeout_s"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build the runner image
+        run: docker build -q -t matrix-globe-runner:py311 -f docker/Dockerfile docker/
+
+      - name: Run the files in Docker (no network, no secrets)
+        env:
+          SANDBOX_NONCE: ${{ inputs.nonce }}
+          SANDBOX_PAYLOAD: ${{ inputs.payload }}
+        run: python3 -m proof.sandbox.gha_job --out sandbox-result/result.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-result
+          path: sandbox-result/result.json
+          retention-days: 1
+          if-no-files-found: error

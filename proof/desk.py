@@ -1,7 +1,9 @@
 """Proof desk (PLAN.md 5.8): poll Matrix, prove, publish, persist state.
 
-External code runs only in the Docker sandbox. The desk refuses to run
-a live (non-dry-run) request with the local sandbox. All LLM calls for a
+External code runs only in Docker: on a GitHub Actions runner that holds
+no secrets (``--sandbox gha``, the default; PLAN.md section 9) or in a
+local Docker (``--sandbox docker``). The desk refuses to run a live
+(non-dry-run) request with the local sandbox. All LLM calls for a
 desk request carry origin ``external``, so the LLM client guard refuses
 any ``-contributor`` model and the reviser uses
 ``MODEL_BUILDER_EXTERNAL`` (Spark Standard) while the reviewer uses
@@ -355,7 +357,7 @@ class Desk:
             "public_test": request.tests or "",
             "reference": None,
         }
-        sandbox_label = (
+        sandbox_label = getattr(self.sandbox, "label", None) or (
             "local" if isinstance(self.sandbox, LocalSandbox)
             else "docker:python:3.11-slim --network none"
         )
@@ -523,6 +525,26 @@ def _check_fresh_cli() -> bool:
         client.close()
 
 
+def make_sandbox(kind: str) -> Any:
+    """Sandbox for a live desk run: ``gha`` (default) or ``docker``."""
+    if kind == "docker":
+        from proof.sandbox.docker import DockerSandbox
+        return DockerSandbox()
+    if kind == "gha":
+        from proof.sandbox.gha import GitHubActionsSandbox
+        return GitHubActionsSandbox(repo=os.getenv("SANDBOX_REPO") or "matrixagentsocial/matrix-globe")
+    if kind == "local":
+        from proof.sandbox.local import LocalSandbox
+        return LocalSandbox()
+    raise ValueError(f"unknown sandbox {kind!r}")
+
+
+def missing_keys(stack_open: bool) -> list[str]:
+    """Keys a live cycle needs: the Matrix key plus the key of the model stack."""
+    needed = ["PROOFDESK_KEY", "BASETEN_API_KEY" if stack_open else "MODEL_API_KEY"]
+    return [name for name in needed if not os.getenv(name)]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="proof.desk", description="Matrix Globe proof desk")
     parser.add_argument("--once", action="store_true", help="run one poll cycle")
@@ -530,12 +552,19 @@ def main(argv: list[str] | None = None) -> int:
                         help="print would-be posts for a local request file")
     parser.add_argument("--request-file", help="markdown proof request (with --dry-run)")
     parser.add_argument("--state", default=str(DEFAULT_STATE_PATH), help="desk state file")
+    parser.add_argument("--sandbox", choices=("gha", "docker", "local"),
+                        default=os.getenv("DESK_SANDBOX") or None,
+                        help="where the code runs: gha (GitHub Actions, default for --once), "
+                             "docker, or local (--dry-run only, trusted files)")
+    parser.add_argument("--stack", choices=("meta", "open"), default=None,
+                        help="model stack; default DESK_STACK (open = Spark Open on Baseten)")
     args = parser.parse_args(argv)
+    if args.stack:
+        os.environ["DESK_STACK"] = "" if args.stack == "meta" else args.stack
 
     if args.dry_run:
         if not args.request_file:
             parser.error("--dry-run requires --request-file <md>")
-        from proof.sandbox.local import LocalSandbox
 
         text = Path(args.request_file).read_text(encoding="utf-8")
         try:
@@ -549,7 +578,7 @@ def main(argv: list[str] | None = None) -> int:
 
         desk = Desk(
             matrix=MatrixClient(), llm_client=LLMClient(ledger=ledger, settings=settings),
-            sandbox=LocalSandbox(), ledger=ledger, settings=settings,
+            sandbox=make_sandbox(args.sandbox or "local"), ledger=ledger, settings=settings,
             state_path=args.state, dry_run=True,
         )
         posts = desk.dry_run_posts(request, creation_id="dry-run")
@@ -557,8 +586,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.once:
-        if not os.getenv("MODEL_API_KEY") or not os.getenv("PROOFDESK_KEY"):
-            print("MODEL_API_KEY or PROOFDESK_KEY is missing; doing nothing.")
+        if args.sandbox == "local":
+            parser.error("--once never runs external code with the local sandbox")
+        missing = missing_keys(desk_stack_is_open())
+        if missing:
+            print(f"{' and '.join(missing)} missing; doing nothing.")
             return 0
         if not _check_fresh_cli():
             print("Matrix is unreachable or STALE; doing nothing.")
@@ -566,11 +598,10 @@ def main(argv: list[str] | None = None) -> int:
         settings = load_settings()
         ledger = Ledger(settings=settings)
         from proof.llm import LLMClient
-        from proof.sandbox.docker import DockerSandbox
 
         desk = Desk(
             matrix=MatrixClient(), llm_client=LLMClient(ledger=ledger, settings=settings),
-            sandbox=DockerSandbox(), ledger=ledger, settings=settings,
+            sandbox=make_sandbox(args.sandbox or "gha"), ledger=ledger, settings=settings,
             state_path=args.state,
         )
         summary = desk.run_once()

@@ -83,6 +83,8 @@ def _collect_output_files(workdir: Path) -> dict[str, str]:
 class LocalSandbox(Sandbox):
     """Temp-dir subprocess sandbox for trusted benchmark code only."""
 
+    label = "local"
+
     def __init__(self, origin: str = "bench") -> None:
         self.origin = origin
         self.python_cmd = sys.executable
