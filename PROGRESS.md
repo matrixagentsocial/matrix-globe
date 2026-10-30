@@ -11,7 +11,9 @@ Running log for Matrix Globe. Updated every session.
 | M2 — Proof loop | done (condition B live cost not measured: session live budget was exhausted by D, see below) |
 | M3 — FinCode-30 complete | done (30 tasks + 90 mutants validated; review-benchmark pilot v2 on dev; prompts frozen at tag `prompts-v1`) |
 | M4 — Matrix desk (@proofdesk) | built against a mocked Matrix (Matrix is down until ~Nov 1); live dry run done; going live when Matrix is back (no owner tasks: see PLAN.md section 9, update of 2026-10-27) |
-| M6 — Final benchmark | run done on the test split (see "Final run results"); hand classification of UNCONFIRMED claims pending |
+| M6 — Final benchmark | done: test-split run, open-weights run, all 190 UNCONFIRMED claims classified (2026-10-30) |
+| M5b — Proof viewer | live on GitHub Pages with both final runs (902 bundles, hash check in the browser) |
+| M8 — Story | judges' README and `docs/built-with-muse-code.md` done (2026-10-30); video and submission pending |
 
 ## Verified facts (M0)
 
@@ -703,6 +705,37 @@ Unit tests: 127 passed, 4 skipped (Docker live) with the
 routing fix; the open-conditions mocked tests assert every role call
 carries the open model id).
 
+## Session 2026-10-30 (Claude Code, no API spend)
+
+Matrix is still down: Codex's Aiven failover is deployed but `initialized=false`;
+it copies from Neon only when Neon is readable again (probably Nov 1), so
+nothing on the Matrix side can go live yet. Zero LLM calls this session.
+
+- **Viewer** (`site/`): `build_index.py` now indexes all 902 committed bundles
+  (dev, `results/final/`, `results/final_open/`) with stack/scope/target, and
+  writes `summary.json` computed from the JSONL rows. The page shows both
+  stacks' PR and single-task tables and a filterable proof list (default
+  condition D). Node check: the JS canonical hash equals Python's for all 902
+  bundles; `tests/test_site_index.py` checks every final row's recorded
+  `bundle_sha256` against its bundle. Live and verified at
+  https://matrixagentsocial.github.io/matrix-globe/ (desktop + 375 px mobile).
+- **UNCONFIRMED classification** (`bench/classify_unconfirmed.py`,
+  `results/unconfirmed_classification.md`): 190 proven-but-unconfirmed claims
+  (hosted 52 PR + 61 single, open 30 + 47). Bundles keep titles and test
+  hashes, not test code, so each family was decided from titles against
+  spec.md + reference.py; rules and rationale are in the script, and it fails
+  on any unclassified claim. Result: **0 reviewer errors**, 102 shared defects
+  (63 huge-magnitude Decimal-context crashes, 13 whitespace-only keys, 11 dates
+  with a trailing newline, 9 currency-code checks, 4 unhashable type, 2
+  non-ASCII digits), 88 spec ambiguities (78 "1.500" vs "at most 2 decimal
+  places", 6 zero-quantized straight-line year, 4 others). Real-defect rate
+  (VALID + shared) over proven: hosted 0.71 PR / 0.90 single, open 0.48 / 0.76;
+  without the magnitude family 0.61 / 0.84 / 0.48 / 0.74.
+- **README for judges** and **`docs/built-with-muse-code.md`** (per-session
+  files, edits, calls and `run.usage` $ from the Muse event logs; ~$18 by
+  `run.usage`, Billing ~1.5-2x).
+- Tests: 130 passed, 4 skipped (live Docker). CI and Pages green.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -732,13 +765,12 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-The final run is done (see "Final run results"). Next: merge
-`open-weights`; classify the final UNCONFIRMED claims by hand; judges'
-README and `docs/built-with-muse-code.md`; update the Pages viewer with
-the final results; desk changes from PLAN.md section 9 (desk runs on the
-owner's PC with `DESK_STACK=open`, untrusted code runs in a secret-less
-GitHub Actions Docker job, no repo secrets). When Matrix is back (~Nov 1):
-provision the agents as seeded service agents, deploy `/proof` + MCP,
-publish showcase proofs, record the Muse Code <-> Matrix demo. Meta
-credits are tight (about $40 left after the final run): no more
-benchmark runs on the Meta API.
+Done without Matrix: viewer, classification, README, authorship page. Next:
+desk changes from PLAN.md section 9 (desk on the owner's PC with
+`DESK_STACK=open`, untrusted code in a secret-less Actions Docker job). When
+Matrix is back (~Nov 1; check `/v1/health/database` for `initialized=true`):
+provision the agents as seeded service agents, deploy `/proof` + MCP, publish
+showcase proofs, record the Muse Code <-> Matrix demo. Then the video (PLAN
+section 8; the results section should use the open-weights headline) and the
+submission by Nov 4 20:00. Meta credits: about $40 left, reserved for the demo
+and judging; Baseten about $79; Modal $100 unused (needs `modal token new`).
