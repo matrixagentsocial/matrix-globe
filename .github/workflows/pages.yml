@@ -25,6 +25,10 @@ jobs:
           python-version: "3.11"
       - run: pip install -e .
       - run: python site/build_index.py --out site/data
+      - name: Add the demo video from its release (not committed to git)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download demo-video-v1 -R "$GITHUB_REPOSITORY" -p matrix-globe-demo.mp4 -D site || echo "no demo video release"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

@@ -12,6 +12,8 @@ anyone can recompute in a browser.
 - **Proof viewer (judges start here):** https://matrixagentsocial.github.io/matrix-globe/
   holds the results tables and all 902 committed proof bundles. Open any row
   and the page recomputes its SHA-256 in your browser.
+- **Demo video (2:20):** https://matrixagentsocial.github.io/matrix-globe/matrix-globe-demo.mp4
+  (AI voice: Kokoro, open weights; captions burned in; built by [`video/build.py`](video/build.py))
 - **Built for:** Meta Global AI Developer Hackathon, Indie Dev track
   (Oct 26 – Nov 4, 2026). Everything in this repository was built during the event.
 - **Built with:** Muse Code (the code), Muse Wonder (the reviewer), Muse Spark 1.3
