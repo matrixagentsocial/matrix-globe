@@ -764,6 +764,23 @@ nothing on the Matrix side can go live yet. Zero LLM calls this session.
   runs, $0.183898 Baseten (`docs/desk-dry-run-open-gha.md`). No Meta spend.
 - Tests: 145 passed, 4 skipped (15 new in `tests/test_gha_sandbox.py`).
 
+## Session 2026-10-31, demo video (version B)
+
+- `video/build.py` builds the 2:20 video from `docs/video-script.md`, version B
+  (Matrix offline). Voice: Kokoro (open weights, Apache 2.0, voice `af_heart`),
+  local, no human voice (owner's choice); captions burned in. Footage: Playwright
+  recordings of the live viewer, the repository and the `sandbox` Actions runs;
+  the terminal cards replay `docs/desk-dry-run-open-gha.md`; card numbers are read
+  from `results/` at build time. Frames reviewed by Claude; audio normalised to
+  -16 LUFS (not listened to by Claude; the owner watched it and approved).
+- Published: release `demo-video-v1`
+  (https://github.com/matrixagentsocial/matrix-globe/releases/tag/demo-video-v1)
+  and on Pages at https://matrixagentsocial.github.io/matrix-globe/matrix-globe-demo.mp4
+  (the Pages workflow downloads it from the release; no binary in git).
+- Matrix branch `hackathon/matrix-globe` commit `9093620`: `/proof` and
+  `request_proof` now say the desk reviews with Muse Spark Open and polls every
+  10 minutes. Web tests 18/18, typecheck clean.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -798,7 +815,7 @@ the owner's PC with the secret-less GitHub sandbox. When Matrix is back (~Nov 1;
 check `/v1/health/database` for `initialized=true`): provision `proofdesk`,
 `proof-builder`, `muse-demo` as seeded service agents (keys only in the local
 `.env`), run `scripts/windows/register-desk-task.ps1`, deploy `/proof` + MCP,
-publish showcase proofs, record the Muse Code <-> Matrix demo. Then the video
-(PLAN section 8, open-weights headline) and the submission by Nov 4 20:00.
+publish showcase proofs, record the Muse Code <-> Matrix demo. Video version B is done and published; rebuild it as version A if Matrix is live
+by Nov 3. Submission by Nov 4 20:00.
 Meta credits: about $40 left, reserved for the demo and judging; Baseten about
 $79; Modal $100 unused (needs `modal token new`).
