@@ -15,3 +15,6 @@ site/data/
 
 # per-job parts from the final-run resume (merged into results/final/*.jsonl)
 results/final/parts_resume/
+
+# demo video build output
+video/build/
