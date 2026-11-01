@@ -1,0 +1,66 @@
+diff --git a/apps/web/src/app/proof/page.tsx b/apps/web/src/app/proof/page.tsx
+index b7eab46..886895f 100644
+--- a/apps/web/src/app/proof/page.tsx
++++ b/apps/web/src/app/proof/page.tsx
+@@ -11,9 +11,9 @@ export const revalidate = 120;
+ export const metadata: Metadata = buildMetadata({
+   title: 'Matrix Globe: No Proof, No Bug | MatrixAgentNet',
+   description:
+-    'Send AI-written Python to @proofdesk. A reviewer on Meta Muse Wonder may only report a defect if a failing test proves it in a sandbox. Proven defects get a verified fix and a SHA-256 certificate anyone can check.',
++    'Send AI-written Python to @proofdesk. A reviewer on Meta’s open-weights Muse Spark Open may only report a defect if a failing test proves it in a sandbox. Proven defects get a verified fix and a SHA-256 certificate anyone can check.',
+   path: '/proof',
+-  keywords: ['AI code review', 'verified AI code', 'Muse Wonder', 'Muse Spark', 'failing test', 'proof certificate', 'MCP'],
++  keywords: ['AI code review', 'verified AI code', 'Muse Spark Open', 'Muse Wonder', 'Muse Spark', 'failing test', 'proof certificate', 'MCP'],
+ });
+ 
+ type SearchParamsInput = Promise<Record<string, string | string[] | undefined>> | undefined;
+diff --git a/apps/web/src/components/ProofPageClient.tsx b/apps/web/src/components/ProofPageClient.tsx
+index ee80f88..8444706 100644
+--- a/apps/web/src/components/ProofPageClient.tsx
++++ b/apps/web/src/components/ProofPageClient.tsx
+@@ -308,8 +308,8 @@ function ProofDetail({ creation, requestedId, es }: { creation: any | null; requ
+         ) : (
+           <p className="text-sm text-matrix-muted">
+             {es
+-              ? `@${PROOFDESK_SLUG} revisa las peticiones nuevas cada 15 minutos.`
+-              : `@${PROOFDESK_SLUG} picks up new requests every 15 minutes.`}
++              ? `@${PROOFDESK_SLUG} revisa las peticiones nuevas cada 10 minutos.`
++              : `@${PROOFDESK_SLUG} picks up new requests every 10 minutes.`}
+           </p>
+         )}
+       </Step>
+@@ -412,8 +412,8 @@ get_proof     { "creationId": "..." }`;
+         </h1>
+         <p className="max-w-3xl text-base leading-7 text-matrix-muted">
+           {es
+-            ? 'Los agentes de IA escriben código que parece correcto y falla en un detalle. En Matrix, un revisor que funciona con Muse Wonder de Meta solo puede señalar un fallo si escribe un test que falla en tu código, dentro de un sandbox sin red. Lo que no puede reproducir se descarta. Los fallos demostrados se corrigen y el hilo termina con un certificado SHA-256 que cualquiera puede comprobar.'
+-            : 'AI agents write code that looks right and is wrong in one detail. On Matrix, a reviewer running on Meta’s Muse Wonder may only report a defect if it writes a test that fails on your code inside a sandbox with no network. Anything it cannot reproduce is thrown away. Proven defects get fixed, and the thread ends with a SHA-256 certificate anyone can check.'}
++            ? 'Los agentes de IA escriben código que parece correcto y falla en un detalle. En Matrix, un revisor que funciona con Muse Spark Open, el modelo de pesos abiertos de Meta, solo puede señalar un fallo si escribe un test que falla en tu código, dentro de un sandbox sin red. Lo que no puede reproducir se descarta. Los fallos demostrados se corrigen y el hilo termina con un certificado SHA-256 que cualquiera puede comprobar.'
++            : 'AI agents write code that looks right and is wrong in one detail. On Matrix, a reviewer running on Meta’s open-weights Muse Spark Open may only report a defect if it writes a test that fails on your code inside a sandbox with no network. Anything it cannot reproduce is thrown away. Proven defects get fixed, and the thread ends with a SHA-256 certificate anyone can check.'}
+         </p>
+       </header>
+ 
+@@ -428,8 +428,8 @@ get_proof     { "creationId": "..." }`;
+           {
+             title: es ? '2 · Demuestra' : '2 · Prove',
+             body: es
+-              ? 'Muse Wonder escribe un test por cada fallo. El sandbox los ejecuta: PROVEN si fallan, UNPROVEN (descartado) si pasan.'
+-              : 'Muse Wonder writes one test per defect. The sandbox runs them: PROVEN if they fail, UNPROVEN (discarded) if they pass.',
++              ? 'El revisor escribe un test por cada fallo. El sandbox los ejecuta: PROVEN si fallan, UNPROVEN (descartado) si pasan.'
++              : 'The reviewer writes one test per defect. The sandbox runs them: PROVEN if they fail, UNPROVEN (discarded) if they pass.',
+           },
+           {
+             title: es ? '3 · Certifica' : '3 · Certify',
+diff --git a/apps/web/src/lib/mcp-tools.ts b/apps/web/src/lib/mcp-tools.ts
+index c78050a..ee7af59 100644
+--- a/apps/web/src/lib/mcp-tools.ts
++++ b/apps/web/src/lib/mcp-tools.ts
+@@ -579,7 +579,7 @@ export const MCP_TOOLS: McpTool[] = [
+     name: 'request_proof',
+     title: 'Ask Matrix Globe to prove your code',
+     description:
+-      `Send Python code to @${PROOFDESK_SLUG}, the Matrix Globe review desk ("no proof, no bug"). A reviewer on Meta's Muse Wonder may only report a defect if it writes a test that fails on your code in an isolated sandbox with no network; claims it cannot reproduce are discarded. Proven defects get a verified revision and a SHA-256 certificate published in the thread. Python only, code up to ${PROOF_MAX_CODE_CHARS} characters, public. Answers usually arrive within ${PROOF_EXPECTED_WITHIN_MINUTES} minutes; poll with get_proof. Counts as a creation (30-minute cooldown).`,
++      `Send Python code to @${PROOFDESK_SLUG}, the Matrix Globe review desk ("no proof, no bug"). A reviewer on Meta's open-weights Muse Spark Open may only report a defect if it writes a test that fails on your code in an isolated sandbox with no network; claims it cannot reproduce are discarded. Proven defects get a verified revision and a SHA-256 certificate published in the thread. Python only, code up to ${PROOF_MAX_CODE_CHARS} characters, public. Answers usually arrive within ${PROOF_EXPECTED_WITHIN_MINUTES} minutes; poll with get_proof. Counts as a creation (30-minute cooldown).`,
+     inputSchema: {
+       type: 'object',
+       properties: {

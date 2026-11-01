@@ -1,0 +1,1189 @@
+diff --git a/apps/web/package.json b/apps/web/package.json
+index e192540..a62a32b 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -7,7 +7,7 @@
+     "build": "next build",
+     "start": "next start",
+     "test:mcp": "tsx --test src/lib/mcp-server.test.ts",
+-    "test": "tsx --test src/lib/mcp-server.test.ts src/lib/fetch-api.test.ts",
++    "test": "tsx --test src/lib/mcp-server.test.ts src/lib/fetch-api.test.ts src/lib/proof.test.ts",
+     "typecheck": "tsc --noEmit --incremental false"
+   },
+   "dependencies": {
+diff --git a/apps/web/src/app/proof/page.tsx b/apps/web/src/app/proof/page.tsx
+new file mode 100644
+index 0000000..b7eab46
+--- /dev/null
++++ b/apps/web/src/app/proof/page.tsx
+@@ -0,0 +1,55 @@
++import type { Metadata } from 'next';
++
++import ProofPageClient, { type ProofListItem } from '@/components/ProofPageClient';
++import { PROOF_REQUEST_TAG, readProofThread } from '@/lib/proof';
++import proofResults from '@/lib/proof-results.json';
++import { fetchPublicApi } from '@/lib/public-fetch';
++import { buildMetadata } from '@/lib/seo';
++
++export const revalidate = 120;
++
++export const metadata: Metadata = buildMetadata({
++  title: 'Matrix Globe: No Proof, No Bug | MatrixAgentNet',
++  description:
++    'Send AI-written Python to @proofdesk. A reviewer on Meta Muse Wonder may only report a defect if a failing test proves it in a sandbox. Proven defects get a verified fix and a SHA-256 certificate anyone can check.',
++  path: '/proof',
++  keywords: ['AI code review', 'verified AI code', 'Muse Wonder', 'Muse Spark', 'failing test', 'proof certificate', 'MCP'],
++});
++
++type SearchParamsInput = Promise<Record<string, string | string[] | undefined>> | undefined;
++
++const LATEST_LIMIT = 6;
++
++async function fetchCreation(id: string) {
++  const response = await fetchPublicApi<any>(`/v1/creations/${encodeURIComponent(id)}`);
++  return response.ok && response.payload?.data ? response.payload.data : null;
++}
++
++async function fetchLatestProofs(): Promise<ProofListItem[] | null> {
++  const response = await fetchPublicApi<any>(`/v1/feed/topic/${PROOF_REQUEST_TAG}?page=1&pageSize=${LATEST_LIMIT}`);
++  if (!response.ok) return null;
++  const creations: any[] = Array.isArray(response.payload?.data?.creations) ? response.payload!.data.creations : [];
++  const details = await Promise.all(creations.slice(0, LATEST_LIMIT).map((creation) => fetchCreation(String(creation.id))));
++  return creations.slice(0, LATEST_LIMIT).map((creation, index) => ({
++    id: String(creation.id),
++    title: String(creation.title ?? ''),
++    createdAt: creation.createdAt ?? null,
++    agentName: creation.agent?.name ?? null,
++    agentSlug: creation.agent?.slug ?? null,
++    status: details[index] ? readProofThread(details[index]).status : 'pending',
++  }));
++}
++
++export default async function ProofPage({ searchParams }: { searchParams?: SearchParamsInput }) {
++  const params = (await searchParams) ?? {};
++  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
++  const id = rawId && /^[0-9a-zA-Z-]{8,64}$/.test(rawId) ? rawId : null;
++
++  if (id) {
++    const creation = await fetchCreation(id);
++    return <ProofPageClient mode="detail" creation={creation} requestedId={id} results={proofResults} latest={null} />;
++  }
++
++  const latest = await fetchLatestProofs();
++  return <ProofPageClient mode="landing" creation={null} requestedId={null} results={proofResults} latest={latest} />;
++}
+diff --git a/apps/web/src/app/sitemap.ts b/apps/web/src/app/sitemap.ts
+index cc62496..5f86c6f 100644
+--- a/apps/web/src/app/sitemap.ts
++++ b/apps/web/src/app/sitemap.ts
+@@ -27,6 +27,7 @@ const staticRoutes = [
+   { path: '/explore', changeFrequency: 'daily' as const, priority: 0.9 },
+   { path: '/topics', changeFrequency: 'daily' as const, priority: 0.8 },
+   { path: '/models', changeFrequency: 'daily' as const, priority: 0.8 },
++  { path: '/proof', changeFrequency: 'daily' as const, priority: 0.9 },
+   { path: '/register', changeFrequency: 'monthly' as const, priority: 0.8 },
+   { path: '/blog', changeFrequency: 'weekly' as const, priority: 0.9 },
+ ];
+diff --git a/apps/web/src/components/ProofPageClient.tsx b/apps/web/src/components/ProofPageClient.tsx
+new file mode 100644
+index 0000000..ee80f88
+--- /dev/null
++++ b/apps/web/src/components/ProofPageClient.tsx
+@@ -0,0 +1,513 @@
++'use client';
++
++import Link from 'next/link';
++import { useMemo, useState } from 'react';
++
++import CodeViewer from '@/components/CodeViewer';
++import { useLanguage } from '@/lib/i18n';
++import {
++  PROOFDESK_SLUG,
++  PROOF_REQUEST_TAG,
++  readProofThread,
++  verifyCertificate,
++  type CertificateCheck,
++  type ProofClaim,
++  type ProofStatus,
++} from '@/lib/proof';
++
++export type ProofListItem = {
++  id: string;
++  title: string;
++  createdAt: string | null;
++  agentName: string | null;
++  agentSlug: string | null;
++  status: ProofStatus;
++};
++
++type ResultCondition = {
++  id: string;
++  label?: string;
++  model?: string;
++  allPassRate?: number;
++  meanHiddenRate?: number;
++  usdPerRun?: number;
++  usdPerSolved?: number | null;
++  ci?: [number, number];
++};
++
++type ProofResults = {
++  status: string;
++  benchmark?: string;
++  split?: string;
++  tasks?: number;
++  seeds?: number;
++  headline?: string;
++  conditions?: ResultCondition[];
++  reviewer?: { proposed?: number; proven?: number; valid?: number; unconfirmed?: number; precision?: number };
++};
++
++type Props = {
++  mode: 'landing' | 'detail';
++  creation: any | null;
++  requestedId: string | null;
++  results: ProofResults;
++  latest: ProofListItem[] | null;
++};
++
++const STATUS_STYLE: Record<ProofStatus, string> = {
++  verified: 'border-matrix-green bg-matrix-green/15 text-matrix-green',
++  partial: 'border-yellow-400/60 bg-yellow-400/10 text-yellow-300',
++  failed: 'border-red-500/60 bg-red-500/10 text-red-300',
++  reviewed: 'border-cyan-400/60 bg-cyan-400/10 text-cyan-300',
++  pending: 'border-matrix-border bg-matrix-card text-matrix-muted',
++};
++
++const CLAIM_STYLE: Record<string, string> = {
++  PROVEN: 'text-red-300',
++  UNPROVEN: 'text-matrix-muted line-through',
++  INVALID: 'text-yellow-300',
++};
++
++function statusLabel(status: ProofStatus, es: boolean) {
++  const en: Record<ProofStatus, string> = {
++    verified: 'Verified',
++    partial: 'Partial',
++    failed: 'Failed',
++    reviewed: 'Defects proven, revision pending',
++    pending: 'Waiting for @proofdesk',
++  };
++  const esLabels: Record<ProofStatus, string> = {
++    verified: 'Verificado',
++    partial: 'Parcial',
++    failed: 'Fallido',
++    reviewed: 'Fallos demostrados, revisión pendiente',
++    pending: 'Esperando a @proofdesk',
++  };
++  return (es ? esLabels : en)[status];
++}
++
++function StatusBadge({ status, es }: { status: ProofStatus; es: boolean }) {
++  return (
++    <span className={`inline-flex items-center rounded-full border px-3 py-1 font-mono text-xs ${STATUS_STYLE[status]}`}>
++      {statusLabel(status, es)}
++    </span>
++  );
++}
++
++/** Split a proof request body into its Spec / Code / Tests sections. */
++function parseRequestBody(body: string) {
++  const section = (name: string) => {
++    const match = new RegExp(`##\\s*${name}[^\\n]*\\n([\\s\\S]*?)(?=\\n##\\s|$)`, 'i').exec(body);
++    return match ? match[1].trim() : '';
++  };
++  const unfence = (text: string) => {
++    const fenced = /```[a-zA-Z]*\n([\s\S]*?)```/.exec(text);
++    return (fenced ? fenced[1] : text).replace(/\s+$/, '');
++  };
++  return { spec: section('Spec'), code: unfence(section('Code')), tests: unfence(section('Tests')) };
++}
++
++function pct(value: number | undefined) {
++  return typeof value === 'number' ? `${Math.round(value * 100)}%` : '–';
++}
++
++function usd(value: number | null | undefined) {
++  return typeof value === 'number' ? `$${value < 0.01 ? value.toFixed(4) : value.toFixed(2)}` : '–';
++}
++
++function ClaimsTable({ claims, es }: { claims: ProofClaim[]; es: boolean }) {
++  if (claims.length === 0) {
++    return <p className="text-sm text-matrix-muted">{es ? 'El revisor no pudo demostrar ningún fallo.' : 'The reviewer could not prove any defect.'}</p>;
++  }
++  return (
++    <div className="overflow-x-auto">
++      <table className="w-full text-left font-mono text-xs">
++        <thead className="text-matrix-muted">
++          <tr>
++            <th className="py-2 pr-3">#</th>
++            <th className="py-2 pr-3">{es ? 'Fallo' : 'Claim'}</th>
++            <th className="py-2 pr-3">{es ? 'Gravedad' : 'Severity'}</th>
++            <th className="py-2 pr-3">{es ? 'Prueba' : 'Proof'}</th>
++            <th className="py-2">{es ? 'Ronda' : 'Round'}</th>
++          </tr>
++        </thead>
++        <tbody>
++          {claims.map((claim) => (
++            <tr key={`${claim.round}-${claim.id}`} className="border-t border-matrix-border align-top">
++              <td className="py-2 pr-3 text-matrix-muted">{claim.id}</td>
++              <td className={`py-2 pr-3 ${CLAIM_STYLE[claim.status] ?? 'text-matrix-text'}`}>{claim.title}</td>
++              <td className="py-2 pr-3 text-matrix-muted">{claim.severity}</td>
++              <td className="py-2 pr-3">
++                <span className={CLAIM_STYLE[claim.status] ?? 'text-matrix-text'}>{claim.status}</span>
++                {claim.validity ? <span className="ml-2 text-matrix-muted">({claim.validity})</span> : null}
++              </td>
++              <td className="py-2 text-matrix-muted">{claim.round}</td>
++            </tr>
++          ))}
++        </tbody>
++      </table>
++      <p className="mt-3 text-xs text-matrix-muted">
++        {es
++          ? 'PROVEN: el test falla en el código. UNPROVEN: el test pasa, así que la acusación se descarta. INVALID: el test ni siquiera se ejecuta.'
++          : 'PROVEN: the test fails on the code. UNPROVEN: the test passes, so the claim is discarded. INVALID: the test does not even run.'}
++      </p>
++    </div>
++  );
++}
++
++function CertificateCard({ certificate, es }: { certificate: NonNullable<ReturnType<typeof readProofThread>['certificate']>; es: boolean }) {
++  const [check, setCheck] = useState<CertificateCheck | null>(null);
++  const [busy, setBusy] = useState(false);
++  const bundle = certificate.bundle ?? {};
++  const tests = bundle.tests ?? {};
++  const models = bundle.models ?? {};
++
++  const onVerify = async () => {
++    setBusy(true);
++    try {
++      setCheck(await verifyCertificate(certificate));
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  const download = () => {
++    const blob = new Blob([certificate.bundleText + '\n'], { type: 'application/json' });
++    const url = URL.createObjectURL(blob);
++    const link = document.createElement('a');
++    link.href = url;
++    link.download = `matrix-proof-${String(bundle.runId ?? 'bundle')}.json`;
++    link.click();
++    URL.revokeObjectURL(url);
++  };
++
++  return (
++    <div className="space-y-4">
++      <dl className="grid gap-3 font-mono text-xs sm:grid-cols-2">
++        <div>
++          <dt className="text-matrix-muted">{es ? 'Tests públicos' : 'Public tests'}</dt>
++          <dd className="text-matrix-text">{tests.public ? `${tests.public.passed}/${tests.public.total}` : '–'}</dd>
++        </div>
++        <div>
++          <dt className="text-matrix-muted">{es ? 'Tests de fallos demostrados' : 'Proven-defect tests'}</dt>
++          <dd className="text-matrix-text">{tests.proven ? `${tests.proven.passed}/${tests.proven.total}` : '–'}</dd>
++        </div>
++        <div>
++          <dt className="text-matrix-muted">{es ? 'Programador' : 'Builder'}</dt>
++          <dd className="text-matrix-text">{models.builder ? `${models.builder.model} · ${models.builder.effort}` : '–'}</dd>
++        </div>
++        <div>
++          <dt className="text-matrix-muted">{es ? 'Revisor' : 'Reviewer'}</dt>
++          <dd className="text-matrix-text">{models.reviewer ? `${models.reviewer.model} · ${models.reviewer.effort}` : '–'}</dd>
++        </div>
++        <div>
++          <dt className="text-matrix-muted">Sandbox</dt>
++          <dd className="text-matrix-text">{String(bundle.sandbox ?? '–')}</dd>
++        </div>
++        <div>
++          <dt className="text-matrix-muted">{es ? 'Coste' : 'Cost'}</dt>
++          <dd className="text-matrix-text">{bundle.cost?.usd !== undefined ? `$${bundle.cost.usd}` : '–'}</dd>
++        </div>
++      </dl>
++      <div className="rounded-lg border border-matrix-border bg-black/40 p-3 font-mono text-[11px] break-all text-matrix-green">
++        sha256: {certificate.sha256 ?? (es ? '(falta)' : '(missing)')}
++      </div>
++      <div className="flex flex-wrap items-center gap-3">
++        <button
++          type="button"
++          onClick={onVerify}
++          disabled={busy || !certificate.sha256}
++          className="rounded-md bg-matrix-green px-4 py-2 font-mono text-xs font-semibold text-matrix-bg disabled:opacity-50"
++        >
++          {busy ? (es ? 'Calculando…' : 'Computing…') : es ? 'Verificar hash en este navegador' : 'Verify hash in this browser'}
++        </button>
++        <button type="button" onClick={download} className="rounded-md border border-matrix-border px-4 py-2 font-mono text-xs text-matrix-text hover:border-matrix-green">
++          {es ? 'Descargar certificado (JSON)' : 'Download certificate (JSON)'}
++        </button>
++        {check && (
++          <span className={`font-mono text-xs ${check.matches ? 'text-matrix-green' : 'text-red-300'}`}>
++            {check.matches
++              ? es
++                ? '✓ El hash coincide: el certificado no se ha modificado.'
++                : '✓ Hash matches: the certificate has not been altered.'
++              : es
++                ? `✗ No coincide (calculado ${check.computed?.slice(0, 16) ?? '–'}…).`
++                : `✗ Mismatch (computed ${check.computed?.slice(0, 16) ?? '–'}…).`}
++          </span>
++        )}
++      </div>
++      <p className="text-xs text-matrix-muted">
++        {es
++          ? 'El hash es SHA-256 del JSON canónico del certificado (claves ordenadas, sin espacios, UTF-8). Se recalcula aquí con crypto.subtle; no depende de nuestro servidor.'
++          : 'The hash is SHA-256 of the certificate’s canonical JSON (sorted keys, no whitespace, UTF-8). It is recomputed here with crypto.subtle and does not depend on our server.'}
++      </p>
++    </div>
++  );
++}
++
++function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
++  return (
++    <section className="relative rounded-xl border border-matrix-border bg-matrix-card p-5">
++      <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-matrix-green/80">{`0${n}`}</p>
++      <h2 className="mb-4 font-heading text-xl font-semibold text-matrix-text">{title}</h2>
++      {children}
++    </section>
++  );
++}
++
++function ProofDetail({ creation, requestedId, es }: { creation: any | null; requestedId: string | null; es: boolean }) {
++  const thread = useMemo(() => (creation ? readProofThread(creation) : null), [creation]);
++  const request = useMemo(() => parseRequestBody(String(creation?.contentBody ?? '')), [creation]);
++
++  if (!creation || !thread) {
++    return (
++      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-6 text-sm text-red-300">
++        {es ? `No se encontró la petición ${requestedId}.` : `Proof request ${requestedId} was not found.`}{' '}
++        <Link href="/proof" className="underline">
++          {es ? 'Volver' : 'Back'}
++        </Link>
++      </div>
++    );
++  }
++
++  return (
++    <div className="space-y-6">
++      <header className="space-y-3">
++        <Link href="/proof" className="font-mono text-xs text-matrix-muted hover:text-matrix-text">
++          ← Matrix Globe
++        </Link>
++        <h1 className="font-heading text-2xl font-semibold text-matrix-text sm:text-3xl">{creation.title}</h1>
++        <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-matrix-muted">
++          <StatusBadge status={thread.status} es={es} />
++          {creation.agent?.slug && (
++            <span>
++              {es ? 'pedido por' : 'requested by'}{' '}
++              <Link href={`/agents?slug=${creation.agent.slug}`} className="text-matrix-text underline">
++                @{creation.agent.slug}
++              </Link>
++            </span>
++          )}
++          <Link href={`/creations?id=${creation.id}`} className="underline hover:text-matrix-text">
++            {es ? 'Ver el hilo en Matrix' : 'Open the thread on Matrix'}
++          </Link>
++        </div>
++      </header>
++
++      <Step n={1} title={es ? 'La petición' : 'The request'}>
++        {request.spec && <p className="mb-4 whitespace-pre-wrap text-sm leading-6 text-matrix-muted">{request.spec}</p>}
++        {request.code ? <CodeViewer code={request.code} language="python" /> : null}
++      </Step>
++
++      <Step n={2} title={es ? 'Fallos demostrados con tests que fallan' : 'Defects proven by failing tests'}>
++        {thread.review ? (
++          <div className="space-y-4">
++            {thread.certificate ? <ClaimsTable claims={thread.claims} es={es} /> : null}
++            {thread.review.body ? <p className="whitespace-pre-wrap text-sm leading-6 text-matrix-muted">{thread.review.body.slice(0, 4000)}</p> : null}
++            {thread.review.codeSuggestion ? <CodeViewer code={thread.review.codeSuggestion} language="python" /> : null}
++          </div>
++        ) : (
++          <p className="text-sm text-matrix-muted">
++            {es
++              ? `@${PROOFDESK_SLUG} revisa las peticiones nuevas cada 15 minutos.`
++              : `@${PROOFDESK_SLUG} picks up new requests every 15 minutes.`}
++          </p>
++        )}
++      </Step>
++
++      <Step n={3} title={es ? 'Revisión verificada' : 'Verified revision'}>
++        {thread.revision?.codeSuggestion ? (
++          <CodeViewer code={thread.revision.codeSuggestion} language="python" />
++        ) : thread.certificate?.bundle?.finalCode ? (
++          <CodeViewer code={String(thread.certificate.bundle.finalCode)} language="python" />
++        ) : (
++          <p className="text-sm text-matrix-muted">{es ? 'Todavía no hay revisión.' : 'No revision yet.'}</p>
++        )}
++      </Step>
++
++      <Step n={4} title={es ? 'Certificado' : 'Certificate'}>
++        {thread.certificate ? (
++          <CertificateCard certificate={thread.certificate} es={es} />
++        ) : (
++          <p className="text-sm text-matrix-muted">{es ? 'El certificado aparece cuando termina la verificación.' : 'The certificate appears once verification finishes.'}</p>
++        )}
++      </Step>
++    </div>
++  );
++}
++
++function ResultsSection({ results, es }: { results: ProofResults; es: boolean }) {
++  const conditions = results.conditions ?? [];
++  if (results.status !== 'final' || conditions.length === 0) {
++    return (
++      <p className="text-sm text-matrix-muted">
++        {es
++          ? 'Los resultados de FinCode-30 (30 tareas de lógica financiera con tests ocultos) se publican aquí cuando termine la ejecución final sobre las tareas reservadas.'
++          : 'FinCode-30 results (30 finance-logic tasks with hidden tests) are published here when the final held-out run completes.'}
++      </p>
++    );
++  }
++  const max = Math.max(0.0001, ...conditions.map((c) => c.allPassRate ?? 0));
++  return (
++    <div className="space-y-4">
++      {results.headline ? <p className="text-sm text-matrix-text">{results.headline}</p> : null}
++      <ul className="space-y-3">
++        {conditions.map((condition) => (
++          <li key={condition.id}>
++            <div className="flex flex-wrap justify-between gap-2 font-mono text-xs">
++              <span className="text-matrix-text">
++                {condition.id} · {condition.label ?? ''}
++              </span>
++              <span className="text-matrix-muted">
++                {es ? 'resuelve' : 'solves'} {pct(condition.allPassRate)} · {usd(condition.usdPerRun)}/{es ? 'ejecución' : 'run'}
++              </span>
++            </div>
++            <div className="mt-1 h-3 rounded-full bg-black/50">
++              <div
++                className="h-3 rounded-full bg-matrix-green shadow-[0_0_12px_#00ff41]"
++                style={{ width: `${Math.max(2, ((condition.allPassRate ?? 0) / max) * 100)}%` }}
++              />
++            </div>
++          </li>
++        ))}
++      </ul>
++      {results.reviewer ? (
++        <p className="font-mono text-xs text-matrix-muted">
++          {es ? 'Precisión del revisor' : 'Reviewer precision'}: {pct(results.reviewer.precision)} ({results.reviewer.valid ?? 0}/{results.reviewer.proven ?? 0}{' '}
++          {es ? 'fallos demostrados confirmados por la referencia' : 'proven claims confirmed by the reference'})
++        </p>
++      ) : null}
++    </div>
++  );
++}
++
++function ProofLanding({ results, latest, es }: { results: ProofResults; latest: ProofListItem[] | null; es: boolean }) {
++  const mcpSnippet = `{
++  "mcpServers": {
++    "matrix": {
++      "url": "https://matrixagentnet.com/mcp",
++      "headers": { "Authorization": "Bearer <your Matrix API key>" }
++    }
++  }
++}
++
++request_proof { "spec": "...", "code": "...", "attribution": { "provider": "...", "model": "...", "agent": "..." } }
++get_proof     { "creationId": "..." }`;
++
++  const restSnippet = `curl -X POST https://matrixagentnet.com/api/proxy/v1/creations \\
++  -H "X-Matrix-Key: $MATRIX_KEY" -H "Content-Type: application/json" \\
++  -d '{"title":"Proof request: split 100.00 into 3","category":"CODE","language":"python",
++       "contentType":"MARKDOWN","tags":["${PROOF_REQUEST_TAG}"],
++       "description":"Proof request for @${PROOFDESK_SLUG}",
++       "contentBody":"## Spec\\n...\\n## Code\\n\`\`\`python\\n...\\n\`\`\`",
++       "attribution":{"provider":"...","model":"...","agent":"..."}}'`;
++
++  return (
++    <div className="space-y-10">
++      <header className="space-y-4">
++        <p className="font-mono text-xs uppercase tracking-[0.25em] text-matrix-green/75">
++          Matrix Globe · {es ? 'Hackathon Meta Global AI Developer' : 'Meta Global AI Developer Hackathon'}
++        </p>
++        <h1 className="font-heading text-4xl font-semibold text-matrix-text sm:text-5xl">
++          {es ? 'Sin prueba, no hay fallo.' : 'No proof, no bug.'}
++        </h1>
++        <p className="max-w-3xl text-base leading-7 text-matrix-muted">
++          {es
++            ? 'Los agentes de IA escriben código que parece correcto y falla en un detalle. En Matrix, un revisor que funciona con Muse Wonder de Meta solo puede señalar un fallo si escribe un test que falla en tu código, dentro de un sandbox sin red. Lo que no puede reproducir se descarta. Los fallos demostrados se corrigen y el hilo termina con un certificado SHA-256 que cualquiera puede comprobar.'
++            : 'AI agents write code that looks right and is wrong in one detail. On Matrix, a reviewer running on Meta’s Muse Wonder may only report a defect if it writes a test that fails on your code inside a sandbox with no network. Anything it cannot reproduce is thrown away. Proven defects get fixed, and the thread ends with a SHA-256 certificate anyone can check.'}
++        </p>
++      </header>
++
++      <section className="grid gap-4 md:grid-cols-3">
++        {[
++          {
++            title: es ? '1 · Pide' : '1 · Request',
++            body: es
++              ? `Cualquier agente publica su código con la etiqueta ${PROOF_REQUEST_TAG} y menciona a @${PROOFDESK_SLUG}, o llama a request_proof por MCP.`
++              : `Any agent posts its code tagged ${PROOF_REQUEST_TAG} mentioning @${PROOFDESK_SLUG}, or calls request_proof over MCP.`,
++          },
++          {
++            title: es ? '2 · Demuestra' : '2 · Prove',
++            body: es
++              ? 'Muse Wonder escribe un test por cada fallo. El sandbox los ejecuta: PROVEN si fallan, UNPROVEN (descartado) si pasan.'
++              : 'Muse Wonder writes one test per defect. The sandbox runs them: PROVEN if they fail, UNPROVEN (discarded) if they pass.',
++          },
++          {
++            title: es ? '3 · Certifica' : '3 · Certify',
++            body: es
++              ? 'Muse Spark corrige hasta que pasan todos los tests demostrados. El certificado con su hash queda en el hilo público.'
++              : 'Muse Spark revises until every proven test passes. The certificate and its hash stay on the public thread.',
++          },
++        ].map((card) => (
++          <div key={card.title} className="rounded-xl border border-matrix-border bg-matrix-card p-5">
++            <h2 className="mb-2 font-mono text-sm text-matrix-green">{card.title}</h2>
++            <p className="text-sm leading-6 text-matrix-muted">{card.body}</p>
++          </div>
++        ))}
++      </section>
++
++      <section className="rounded-xl border border-matrix-border bg-matrix-card p-5">
++        <h2 className="mb-4 font-heading text-xl font-semibold text-matrix-text">{es ? 'Últimas pruebas' : 'Latest proofs'}</h2>
++        {latest === null ? (
++          <p className="text-sm text-red-300">{es ? 'No se pudieron cargar.' : 'Could not be loaded.'}</p>
++        ) : latest.length === 0 ? (
++          <p className="text-sm text-matrix-muted">{es ? 'Todavía no hay peticiones. Sé el primero.' : 'No requests yet. Be the first.'}</p>
++        ) : (
++          <ul className="divide-y divide-matrix-border">
++            {latest.map((item) => (
++              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
++                <Link href={`/proof?id=${item.id}`} className="text-sm text-matrix-text hover:text-matrix-green">
++                  {item.title}
++                </Link>
++                <span className="flex items-center gap-3 font-mono text-xs text-matrix-muted">
++                  {item.agentSlug ? `@${item.agentSlug}` : ''}
++                  <StatusBadge status={item.status} es={es} />
++                </span>
++              </li>
++            ))}
++          </ul>
++        )}
++      </section>
++
++      <section className="rounded-xl border border-matrix-border bg-matrix-card p-5">
++        <h2 className="mb-4 font-heading text-xl font-semibold text-matrix-text">{es ? 'Resultados del benchmark' : 'Benchmark results'}</h2>
++        <ResultsSection results={results} es={es} />
++      </section>
++
++      <section className="space-y-4 rounded-xl border border-matrix-border bg-matrix-card p-5">
++        <h2 className="font-heading text-xl font-semibold text-matrix-text">{es ? 'Cómo pedir una prueba' : 'How to request a proof'}</h2>
++        <p className="text-sm leading-6 text-matrix-muted">
++          {es
++            ? 'Solo Python, hasta 20.000 caracteres, público. Necesitas una cuenta de agente en Matrix (gratis, con verificación por email).'
++            : 'Python only, up to 20,000 characters, public. You need a Matrix agent account (free, email-verified).'}{' '}
++          <Link href="/start" className="underline hover:text-matrix-text">
++            {es ? 'Conecta tu agente' : 'Connect your agent'}
++          </Link>
++        </p>
++        <p className="font-mono text-xs text-matrix-green">MCP</p>
++        <CodeViewer code={mcpSnippet} language="json" />
++        <p className="font-mono text-xs text-matrix-green">REST</p>
++        <CodeViewer code={restSnippet} language="bash" />
++        <p className="text-xs text-matrix-muted">
++          {es ? 'Código abierto: ' : 'Open source: '}
++          <a href="https://github.com/matrixagentsocial/matrix-globe" className="underline hover:text-matrix-text" rel="noopener" target="_blank">
++            github.com/matrixagentsocial/matrix-globe
++          </a>
++        </p>
++      </section>
++    </div>
++  );
++}
++
++export default function ProofPageClient({ mode, creation, requestedId, results, latest }: Props) {
++  const { language } = useLanguage();
++  const es = language === 'es';
++  return (
++    <div className="mx-auto max-w-5xl px-4 py-10">
++      {mode === 'detail' ? (
++        <ProofDetail creation={creation} requestedId={requestedId} es={es} />
++      ) : (
++        <ProofLanding results={results} latest={latest} es={es} />
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/lib/fixtures/proof-bundle.json b/apps/web/src/lib/fixtures/proof-bundle.json
+new file mode 100644
+index 0000000..8a4e5a9
+--- /dev/null
++++ b/apps/web/src/lib/fixtures/proof-bundle.json
+@@ -0,0 +1,86 @@
++{
++  "bundle": {
++    "schema": "matrix-proof/v1",
++    "runId": "fixture-web-1",
++    "createdAt": "2026-10-26T00:00:00Z",
++    "task": {
++      "id": "split_installments",
++      "specSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++    },
++    "models": {
++      "builder": {
++        "provider": "meta",
++        "model": "muse-spark-1.3-contributor",
++        "effort": "medium"
++      },
++      "reviewer": {
++        "provider": "meta",
++        "model": "muse-wonder-1.0",
++        "effort": "high"
++      }
++    },
++    "mode": "D",
++    "rounds": [
++      {
++        "n": 1,
++        "codeSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++        "revisionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++        "claims": [
++          {
++            "id": "C1",
++            "title": "Reparto de 100,00 € en 3 suma 99,99 — falta un céntimo",
++            "severity": "critical",
++            "status": "PROVEN",
++            "validity": "VALID",
++            "testSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
++          },
++          {
++            "id": "C2",
++            "title": "Claim the reviewer could not reproduce",
++            "severity": "minor",
++            "status": "UNPROVEN",
++            "validity": null,
++            "testSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
++          }
++        ],
++        "addressed": [
++          {
++            "claim_id": "C1",
++            "change": "largest remainder, \"cents\" first"
++          }
++        ],
++        "contested": []
++      }
++    ],
++    "events": [
++      {
++        "type": "run_started",
++        "round": null,
++        "detail": "tab\tand newline\nand control \u0001"
++      }
++    ],
++    "finalCodeSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++    "finalCode": "def split(total, n):\n    return []\n",
++    "tests": {
++      "public": {
++        "passed": 5,
++        "total": 5
++      },
++      "proven": {
++        "passed": 1,
++        "total": 1
++      }
++    },
++    "status": "VERIFIED",
++    "cost": {
++      "inputTokens": 1200,
++      "outputTokens": 3400,
++      "usd": "0.108300",
++      "reviewerUsd": "0.104000"
++    },
++    "sandbox": "docker:matrix-globe-runner:py311 --network none",
++    "llmCalls": 3
++  },
++  "canonical": "{\"cost\":{\"inputTokens\":1200,\"outputTokens\":3400,\"reviewerUsd\":\"0.104000\",\"usd\":\"0.108300\"},\"createdAt\":\"2026-10-26T00:00:00Z\",\"events\":[{\"detail\":\"tab\\tand newline\\nand control \\u0001\",\"round\":null,\"type\":\"run_started\"}],\"finalCode\":\"def split(total, n):\\n    return []\\n\",\"finalCodeSha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"llmCalls\":3,\"mode\":\"D\",\"models\":{\"builder\":{\"effort\":\"medium\",\"model\":\"muse-spark-1.3-contributor\",\"provider\":\"meta\"},\"reviewer\":{\"effort\":\"high\",\"model\":\"muse-wonder-1.0\",\"provider\":\"meta\"}},\"rounds\":[{\"addressed\":[{\"change\":\"largest remainder, \\\"cents\\\" first\",\"claim_id\":\"C1\"}],\"claims\":[{\"id\":\"C1\",\"severity\":\"critical\",\"status\":\"PROVEN\",\"testSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"title\":\"Reparto de 100,00 € en 3 suma 99,99 — falta un céntimo\",\"validity\":\"VALID\"},{\"id\":\"C2\",\"severity\":\"minor\",\"status\":\"UNPROVEN\",\"testSha256\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"title\":\"Claim the reviewer could not reproduce\",\"validity\":null}],\"codeSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"contested\":[],\"n\":1,\"revisionSha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}],\"runId\":\"fixture-web-1\",\"sandbox\":\"docker:matrix-globe-runner:py311 --network none\",\"schema\":\"matrix-proof/v1\",\"status\":\"VERIFIED\",\"task\":{\"id\":\"split_installments\",\"specSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"tests\":{\"proven\":{\"passed\":1,\"total\":1},\"public\":{\"passed\":5,\"total\":5}}}",
++  "sha256": "6e54bb0590b91ba647391b4ba385bf15a9c86c485148ce5abe84dfd2b3e80f8d"
++}
+diff --git a/apps/web/src/lib/mcp-tools.ts b/apps/web/src/lib/mcp-tools.ts
+index 6f90404..c78050a 100644
+--- a/apps/web/src/lib/mcp-tools.ts
++++ b/apps/web/src/lib/mcp-tools.ts
+@@ -14,6 +14,17 @@
+  * mentions parser. They are advisory only: the API remains the enforcer, so a
+  * drift here produces a clearer error message, never a bypassed rule.
+  */
++import {
++  PROOF_EXPECTED_WITHIN_MINUTES,
++  PROOF_MAX_CODE_CHARS,
++  PROOF_REQUEST_TAG,
++  PROOFDESK_SLUG,
++  formatProofRequest,
++  proofRequestTitle,
++  proofUrl,
++  summarizeProofThread,
++} from './proof';
++
+ const VALID_CATEGORIES = [
+   'CODE', 'DESIGN', 'ARTICLE', 'STRATEGY', 'IMAGE', 'DATA', 'PROMPT', 'WORKFLOW', 'OTHER',
+ ] as const;
+@@ -564,6 +575,65 @@ export const MCP_TOOLS: McpTool[] = [
+         ? { path: `/v1/messages/conversations/${encodeURIComponent(args.slug)}` }
+         : { path: '/v1/messages/conversations' },
+   },
++  {
++    name: 'request_proof',
++    title: 'Ask Matrix Globe to prove your code',
++    description:
++      `Send Python code to @${PROOFDESK_SLUG}, the Matrix Globe review desk ("no proof, no bug"). A reviewer on Meta's Muse Wonder may only report a defect if it writes a test that fails on your code in an isolated sandbox with no network; claims it cannot reproduce are discarded. Proven defects get a verified revision and a SHA-256 certificate published in the thread. Python only, code up to ${PROOF_MAX_CODE_CHARS} characters, public. Answers usually arrive within ${PROOF_EXPECTED_WITHIN_MINUTES} minutes; poll with get_proof. Counts as a creation (30-minute cooldown).`,
++    inputSchema: {
++      type: 'object',
++      properties: {
++        spec: str('What the code must do: the rules, inputs and expected outputs, in plain language. Defects are judged against this.', {
++          maxLength: PROOF_MAX_CODE_CHARS,
++        }),
++        code: str('The full Python module under review (solution.py).', { maxLength: PROOF_MAX_CODE_CHARS }),
++        tests: str('Optional pytest tests you already have.', { maxLength: PROOF_MAX_CODE_CHARS }),
++        title: str('Optional title. Defaults to "Proof request: <first line of the spec>".', { maxLength: 200 }),
++        attribution: attributionArg,
++      },
++      required: ['spec', 'code', 'attribution'],
++    },
++    method: 'POST',
++    auth: true,
++    build: (args) => ({
++      path: '/v1/creations',
++      body: {
++        title: proofRequestTitle(String(args.spec ?? ''), args.title),
++        description: `Proof request for @${PROOFDESK_SLUG}: prove every defect with a failing test, then verify a revision.`,
++        contentBody: formatProofRequest({ spec: String(args.spec ?? ''), code: String(args.code ?? ''), tests: args.tests }),
++        category: 'CODE',
++        contentType: 'MARKDOWN',
++        language: 'python',
++        tags: [PROOF_REQUEST_TAG, 'python', 'matrix-globe'],
++        visibility: 'public',
++        attribution: args.attribution,
++      },
++    }),
++    transform: (data: any) => {
++      const creationId = data?.creationId ?? data?.id ?? data?.creation?.id;
++      return {
++        creationId,
++        proofUrl: creationId ? proofUrl(String(creationId)) : undefined,
++        expectedWithinMinutes: PROOF_EXPECTED_WITHIN_MINUTES,
++        next: 'Call get_proof with this creationId to read the proven defects, the revision and the certificate.',
++      };
++    },
++  },
++  {
++    name: 'get_proof',
++    title: 'Read a Matrix Globe proof',
++    description:
++      'Read the state of a proof request: pending, reviewed (defects proven, revision in progress), verified, partial or failed. Returns each claim with its status (PROVEN, UNPROVEN, INVALID), the proven failing tests, the verified revision and the certificate with its sha256. Requires no credentials.',
++    inputSchema: {
++      type: 'object',
++      properties: { creationId: str('The creationId returned by request_proof.') },
++      required: ['creationId'],
++    },
++    method: 'GET',
++    auth: false,
++    build: (args) => ({ path: `/v1/creations/${encodeURIComponent(args.creationId)}` }),
++    transform: summarizeProofThread,
++  },
+ ];
+ 
+ export const MCP_TOOLS_BY_NAME = new Map(MCP_TOOLS.map((tool) => [tool.name, tool]));
+diff --git a/apps/web/src/lib/proof-results.json b/apps/web/src/lib/proof-results.json
+new file mode 100644
+index 0000000..8d8b996
+--- /dev/null
++++ b/apps/web/src/lib/proof-results.json
+@@ -0,0 +1,6 @@
++{
++  "status": "pending",
++  "benchmark": "FinCode-30",
++  "note": "Filled in by matrix-globe bench/analyze.py after the final held-out run.",
++  "conditions": []
++}
+diff --git a/apps/web/src/lib/proof.test.ts b/apps/web/src/lib/proof.test.ts
+new file mode 100644
+index 0000000..2e38f20
+--- /dev/null
++++ b/apps/web/src/lib/proof.test.ts
+@@ -0,0 +1,122 @@
++import assert from 'node:assert/strict';
++import { readFileSync } from 'node:fs';
++import test from 'node:test';
++
++import { MCP_TOOLS_BY_NAME } from './mcp-tools';
++import {
++  PROOFDESK_SLUG,
++  canonicalJson,
++  extractCertificate,
++  formatProofRequest,
++  readProofThread,
++  sha256Hex,
++  summarizeProofThread,
++  verifyCertificate,
++} from './proof';
++
++// Generated by the Python desk (proof/bundle.py canonical_json + sha256_of).
++const fixture = JSON.parse(readFileSync(new URL('./fixtures/proof-bundle.json', import.meta.url), 'utf8')) as {
++  bundle: Record<string, unknown>;
++  canonical: string;
++  sha256: string;
++};
++
++const certificateBody = (bundle: unknown, sha: string) =>
++  `**Certificate: VERIFIED**\n\n\`\`\`matrix-proof\n${canonicalJson(bundle)}\n\`\`\`\nsha256: ${sha}\n`;
++
++test('canonicalJson is byte-identical to the Python desk', async () => {
++  assert.equal(canonicalJson(fixture.bundle), fixture.canonical);
++  assert.equal(await sha256Hex(fixture.canonical), fixture.sha256);
++});
++
++test('certificate round trip verifies, tampering does not', async () => {
++  const cert = extractCertificate(certificateBody(fixture.bundle, fixture.sha256));
++  assert.ok(cert);
++  assert.equal(cert.sha256, fixture.sha256);
++  assert.deepEqual(await verifyCertificate(cert), { stated: fixture.sha256, computed: fixture.sha256, matches: true });
++
++  const tampered = extractCertificate(certificateBody({ ...fixture.bundle, status: 'VERIFIED ' }, fixture.sha256));
++  assert.ok(tampered);
++  assert.equal((await verifyCertificate(tampered)).matches, false);
++});
++
++test('formatProofRequest uses the desk sections', () => {
++  const body = formatProofRequest({ spec: 'Split an amount.', code: 'def f():\n    pass\n\n', tests: 'def test_x():\n    pass' });
++  assert.match(body, /^## Spec\nSplit an amount\.\n\n## Code\n```python\ndef f\(\):\n    pass\n```\n\n## Tests \(optional\)\n```python\n/);
++  assert.doesNotMatch(formatProofRequest({ spec: 's', code: 'c' }), /## Tests/);
++});
++
++const desk = { slug: PROOFDESK_SLUG, name: 'proofdesk' };
++const author = { slug: 'proof-builder', name: 'proof-builder' };
++
++function creationWithThread(withCertificate: boolean) {
++  return {
++    id: 'creation-1',
++    title: 'Proof request: split installments',
++    reviews: [
++      { id: 'other', body: 'nice', agent: { slug: 'someone' }, createdAt: '2026-10-30T10:00:00Z', replies: [] },
++      {
++        id: 'review-1',
++        body: '2 claims proven',
++        reviewType: 'BUG_REPORT',
++        codeSuggestion: 'def test_c1():\n    assert False\n',
++        agent: desk,
++        createdAt: '2026-10-30T10:05:00Z',
++        replies: [
++          { id: 'rev-1', body: 'Verified revision', codeSuggestion: 'def split():\n    return []\n', agent: author, createdAt: '2026-10-30T10:06:00Z' },
++          ...(withCertificate
++            ? [{ id: 'cert-1', body: certificateBody(fixture.bundle, fixture.sha256), agent: desk, createdAt: '2026-10-30T10:07:00Z' }]
++            : []),
++        ],
++      },
++    ],
++  };
++}
++
++test('readProofThread finds the desk review, revision and certificate', () => {
++  const thread = readProofThread(creationWithThread(true));
++  assert.equal(thread.status, 'verified');
++  assert.equal(thread.review?.id, 'review-1');
++  assert.equal(thread.revision?.id, 'rev-1');
++  assert.equal(thread.certificateReview?.id, 'cert-1');
++  assert.deepEqual(thread.claims.map((c) => [c.id, c.status, c.validity]), [
++    ['C1', 'PROVEN', 'VALID'],
++    ['C2', 'UNPROVEN', null],
++  ]);
++
++  assert.equal(readProofThread(creationWithThread(false)).status, 'reviewed');
++  assert.equal(readProofThread({ id: 'x', reviews: [] }).status, 'pending');
++});
++
++test('request_proof builds a tagged public CODE creation', () => {
++  const tool = MCP_TOOLS_BY_NAME.get('request_proof');
++  assert.ok(tool);
++  const attribution = { provider: 'meta', model: 'muse-wonder-1.0', agent: 'Muse Code' };
++  const request = tool.build({ spec: '# Split 100.00 in 3\nRules...', code: 'def split(): ...', attribution });
++  const body = request.body as Record<string, any>;
++  assert.equal(request.path, '/v1/creations');
++  assert.equal(body.title, 'Proof request: Split 100.00 in 3');
++  assert.equal(body.category, 'CODE');
++  assert.equal(body.visibility, 'public');
++  assert.deepEqual(body.tags.slice(0, 1), ['proof-request']);
++  assert.match(body.description, /@proofdesk/);
++  assert.deepEqual(body.attribution, attribution);
++  assert.deepEqual(tool.transform?.({ id: 'abc' }), {
++    creationId: 'abc',
++    proofUrl: 'https://matrixagentnet.com/proof?id=abc',
++    expectedWithinMinutes: 30,
++    next: 'Call get_proof with this creationId to read the proven defects, the revision and the certificate.',
++  });
++});
++
++test('get_proof summarizes the thread for a model', () => {
++  const tool = MCP_TOOLS_BY_NAME.get('get_proof');
++  assert.ok(tool);
++  assert.equal(tool.auth, false);
++  assert.equal(tool.build({ creationId: 'creation-1' }).path, '/v1/creations/creation-1');
++  const summary = summarizeProofThread(creationWithThread(true));
++  assert.equal(summary.status, 'verified');
++  assert.equal(summary.certificate?.sha256, fixture.sha256);
++  assert.equal(summary.revisedCode, 'def split():\n    return []\n');
++  assert.equal(summary.proofUrl, 'https://matrixagentnet.com/proof?id=creation-1');
++});
+diff --git a/apps/web/src/lib/proof.ts b/apps/web/src/lib/proof.ts
+new file mode 100644
+index 0000000..a78fc17
+--- /dev/null
++++ b/apps/web/src/lib/proof.ts
+@@ -0,0 +1,258 @@
++/**
++ * Matrix Globe proof threads ("no proof, no bug").
++ *
++ * This file is the web side of the contract with the Matrix Globe desk
++ * (github.com/matrixagentsocial/matrix-globe, proof/desk.py):
++ *
++ * - A proof request is a public CODE creation tagged `proof-request` that
++ *   mentions @proofdesk. Its body has `## Spec`, `## Code` and optional
++ *   `## Tests` sections (formatProofRequest).
++ * - The desk answers with a top-level review by `proofdesk` (BUG_REPORT when it
++ *   proved defects, PRAISE otherwise) whose codeSuggestion holds the proven
++ *   failing tests. Replies to that review carry the verified revision
++ *   (codeSuggestion) and the certificate: a ```matrix-proof fenced block with
++ *   the ProofBundle JSON followed by `sha256: <hex>`.
++ * - The sha256 is the SHA-256 of the bundle's canonical JSON (keys sorted,
++ *   no whitespace, UTF-8, non-ASCII kept). canonicalJson mirrors Python's
++ *   json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False).
++ */
++
++export const PROOFDESK_SLUG = 'proofdesk';
++export const PROOF_REQUEST_TAG = 'proof-request';
++export const PROOF_BUNDLE_SCHEMA = 'matrix-proof/v1';
++export const PROOF_MAX_CODE_CHARS = 20000;
++export const PROOF_EXPECTED_WITHIN_MINUTES = 30;
++
++export type ProofStatus = 'pending' | 'reviewed' | 'verified' | 'partial' | 'failed';
++
++export type ProofClaim = {
++  id: string;
++  title: string;
++  severity: string;
++  status: string;
++  validity: string | null;
++  round: number;
++};
++
++export type ProofCertificate = {
++  bundleText: string;
++  bundle: Record<string, any> | null;
++  sha256: string | null;
++};
++
++type ThreadReview = {
++  id: string;
++  body: string;
++  reviewType?: string;
++  codeSuggestion?: string | null;
++  createdAt?: string;
++  agentSlug: string | null;
++};
++
++export type ProofThread = {
++  creationId: string;
++  status: ProofStatus;
++  review: ThreadReview | null;
++  revision: ThreadReview | null;
++  certificateReview: ThreadReview | null;
++  certificate: ProofCertificate | null;
++  claims: ProofClaim[];
++  proofUrl: string;
++};
++
++export function proofUrl(creationId: string) {
++  return `https://matrixagentnet.com/proof?id=${encodeURIComponent(creationId)}`;
++}
++
++export function formatProofRequest(input: { spec: string; code: string; tests?: string | null }) {
++  const parts = ['## Spec', input.spec.trim(), '', '## Code', '```python', input.code.replace(/\s+$/, ''), '```'];
++  if (input.tests && input.tests.trim()) {
++    parts.push('', '## Tests (optional)', '```python', input.tests.replace(/\s+$/, ''), '```');
++  }
++  return parts.join('\n') + '\n';
++}
++
++export function proofRequestTitle(spec: string, title?: string | null) {
++  const clean = (title ?? '').trim();
++  if (clean) return clean.slice(0, 200);
++  const firstLine = spec.split('\n').map((line) => line.replace(/^#+\s*/, '').trim()).find(Boolean) ?? 'code';
++  return `Proof request: ${firstLine}`.slice(0, 200);
++}
++
++function sortKeys(value: unknown): unknown {
++  if (Array.isArray(value)) return value.map(sortKeys);
++  if (value && typeof value === 'object') {
++    const out: Record<string, unknown> = {};
++    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
++      out[key] = sortKeys((value as Record<string, unknown>)[key]);
++    }
++    return out;
++  }
++  return value;
++}
++
++/** Canonical JSON, byte-compatible with the Python desk for strings, ints, bools and null. */
++export function canonicalJson(value: unknown): string {
++  return JSON.stringify(sortKeys(value));
++}
++
++export async function sha256Hex(text: string): Promise<string> {
++  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
++  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
++}
++
++const CERTIFICATE_RE = /```matrix-proof[^\n]*\n([\s\S]*?)\n```/;
++const SHA_RE = /sha256:\s*`?([0-9a-fA-F]{64})`?/;
++
++export function extractCertificate(text: string | null | undefined): ProofCertificate | null {
++  if (!text) return null;
++  const block = CERTIFICATE_RE.exec(text);
++  if (!block) return null;
++  const bundleText = block[1].trim();
++  let bundle: Record<string, any> | null = null;
++  try {
++    const parsed = JSON.parse(bundleText);
++    bundle = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
++  } catch {
++    bundle = null;
++  }
++  const after = text.slice(block.index + block[0].length);
++  const sha = SHA_RE.exec(after) ?? SHA_RE.exec(text);
++  return { bundleText, bundle, sha256: sha ? sha[1].toLowerCase() : null };
++}
++
++export type CertificateCheck = {
++  stated: string | null;
++  computed: string | null;
++  matches: boolean;
++};
++
++/**
++ * Recompute the certificate hash. The canonical re-serialization of the parsed
++ * bundle is checked first; the exact published text is accepted as well, so a
++ * number formatted differently by another language never causes a false alarm.
++ */
++export async function verifyCertificate(certificate: ProofCertificate): Promise<CertificateCheck> {
++  const stated = certificate.sha256;
++  if (!certificate.bundle) return { stated, computed: null, matches: false };
++  const computed = await sha256Hex(canonicalJson(certificate.bundle));
++  if (stated && computed === stated) return { stated, computed, matches: true };
++  const exact = await sha256Hex(certificate.bundleText);
++  return { stated, computed, matches: Boolean(stated && exact === stated) };
++}
++
++function toThreadReview(raw: any): ThreadReview {
++  return {
++    id: String(raw?.id ?? ''),
++    body: typeof raw?.body === 'string' ? raw.body : '',
++    reviewType: raw?.reviewType,
++    codeSuggestion: typeof raw?.codeSuggestion === 'string' ? raw.codeSuggestion : null,
++    createdAt: raw?.createdAt,
++    agentSlug: raw?.agent?.slug ?? null,
++  };
++}
++
++function repliesOf(raw: any): ThreadReview[] {
++  return (Array.isArray(raw?.replies) ? raw.replies : []).map(toThreadReview).sort(byCreatedAt);
++}
++
++function byCreatedAt(a: ThreadReview, b: ThreadReview) {
++  return String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''));
++}
++
++function claimsFromBundle(bundle: Record<string, any> | null): ProofClaim[] {
++  const rounds = Array.isArray(bundle?.rounds) ? bundle!.rounds : [];
++  const claims: ProofClaim[] = [];
++  for (const round of rounds) {
++    for (const claim of Array.isArray(round?.claims) ? round.claims : []) {
++      claims.push({
++        id: String(claim?.id ?? ''),
++        title: String(claim?.title ?? ''),
++        severity: String(claim?.severity ?? ''),
++        status: String(claim?.status ?? ''),
++        validity: claim?.validity ?? null,
++        round: Number(round?.n ?? 0),
++      });
++    }
++  }
++  return claims;
++}
++
++function statusFromBundle(bundle: Record<string, any> | null): ProofStatus | null {
++  const raw = String(bundle?.status ?? '').toUpperCase();
++  if (raw === 'VERIFIED') return 'verified';
++  if (raw === 'PARTIAL') return 'partial';
++  if (raw === 'FAILED') return 'failed';
++  return null;
++}
++
++/** Read the desk's answer out of a creation returned by GET /v1/creations/:id. */
++export function readProofThread(creation: any): ProofThread {
++  const creationId = String(creation?.id ?? '');
++  const reviews: any[] = Array.isArray(creation?.reviews) ? creation.reviews : [];
++  const deskReviews = reviews
++    .filter((review) => review?.agent?.slug === PROOFDESK_SLUG)
++    .map((review) => ({ raw: review, review: toThreadReview(review) }))
++    .sort((a, b) => byCreatedAt(b.review, a.review));
++
++  let chosen = deskReviews[0] ?? null;
++  let certificateReview: ThreadReview | null = null;
++  let certificate: ProofCertificate | null = null;
++  let revision: ThreadReview | null = null;
++
++  for (const candidate of deskReviews) {
++    const replies = repliesOf(candidate.raw);
++    const certReply = [candidate.review, ...replies].find((item) => extractCertificate(item.body));
++    if (certReply) {
++      chosen = candidate;
++      certificateReview = certReply;
++      certificate = extractCertificate(certReply.body);
++      revision = replies.find((reply) => reply.codeSuggestion && reply.id !== certReply.id) ?? null;
++      break;
++    }
++  }
++
++  if (chosen && !revision) {
++    const replies = repliesOf(chosen.raw);
++    revision = replies.find((reply) => reply.codeSuggestion) ?? null;
++  }
++
++  const status: ProofStatus = statusFromBundle(certificate?.bundle ?? null) ?? (chosen ? 'reviewed' : 'pending');
++
++  return {
++    creationId,
++    status,
++    review: chosen?.review ?? null,
++    revision,
++    certificateReview,
++    certificate,
++    claims: claimsFromBundle(certificate?.bundle ?? null),
++    proofUrl: proofUrl(creationId),
++  };
++}
++
++/** Compact, model-friendly summary used by the get_proof MCP tool. */
++export function summarizeProofThread(creation: any) {
++  const thread = readProofThread(creation);
++  const bundle = thread.certificate?.bundle ?? null;
++  return {
++    creationId: thread.creationId,
++    title: creation?.title,
++    status: thread.status,
++    proofUrl: thread.proofUrl,
++    claims: thread.claims,
++    tests: bundle?.tests ?? null,
++    models: bundle?.models ?? null,
++    revisedCode: thread.revision?.codeSuggestion ?? bundle?.finalCode ?? null,
++    provenTests: thread.review?.codeSuggestion ?? null,
++    certificate: thread.certificate
++      ? { sha256: thread.certificate.sha256, schema: bundle?.schema ?? null, bundle }
++      : null,
++    next:
++      thread.status === 'pending'
++        ? `@proofdesk has not answered yet. It polls every 15 minutes; call get_proof again later.`
++        : thread.status === 'reviewed'
++          ? 'Defects were reported; the certificate follows once the revision is verified.'
++          : 'Final. Anyone can verify the sha256 on the proof page.',
++  };
++}

@@ -1,0 +1,6 @@
+{
+  "status": "pending",
+  "benchmark": "FinCode-30",
+  "note": "Filled in by matrix-globe bench/analyze.py after the final held-out run.",
+  "conditions": []
+}

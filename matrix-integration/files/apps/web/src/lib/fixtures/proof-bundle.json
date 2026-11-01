@@ -1,0 +1,86 @@
+{
+  "bundle": {
+    "schema": "matrix-proof/v1",
+    "runId": "fixture-web-1",
+    "createdAt": "2026-10-26T00:00:00Z",
+    "task": {
+      "id": "split_installments",
+      "specSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "models": {
+      "builder": {
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "provider": "meta",
+        "model": "muse-wonder-1.0",
+        "effort": "high"
+      }
+    },
+    "mode": "D",
+    "rounds": [
+      {
+        "n": 1,
+        "codeSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "revisionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "claims": [
+          {
+            "id": "C1",
+            "title": "Reparto de 100,00 € en 3 suma 99,99 — falta un céntimo",
+            "severity": "critical",
+            "status": "PROVEN",
+            "validity": "VALID",
+            "testSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          {
+            "id": "C2",
+            "title": "Claim the reviewer could not reproduce",
+            "severity": "minor",
+            "status": "UNPROVEN",
+            "validity": null,
+            "testSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "addressed": [
+          {
+            "claim_id": "C1",
+            "change": "largest remainder, \"cents\" first"
+          }
+        ],
+        "contested": []
+      }
+    ],
+    "events": [
+      {
+        "type": "run_started",
+        "round": null,
+        "detail": "tab\tand newline\nand control \u0001"
+      }
+    ],
+    "finalCodeSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "finalCode": "def split(total, n):\n    return []\n",
+    "tests": {
+      "public": {
+        "passed": 5,
+        "total": 5
+      },
+      "proven": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "status": "VERIFIED",
+    "cost": {
+      "inputTokens": 1200,
+      "outputTokens": 3400,
+      "usd": "0.108300",
+      "reviewerUsd": "0.104000"
+    },
+    "sandbox": "docker:matrix-globe-runner:py311 --network none",
+    "llmCalls": 3
+  },
+  "canonical": "{\"cost\":{\"inputTokens\":1200,\"outputTokens\":3400,\"reviewerUsd\":\"0.104000\",\"usd\":\"0.108300\"},\"createdAt\":\"2026-10-26T00:00:00Z\",\"events\":[{\"detail\":\"tab\\tand newline\\nand control \\u0001\",\"round\":null,\"type\":\"run_started\"}],\"finalCode\":\"def split(total, n):\\n    return []\\n\",\"finalCodeSha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"llmCalls\":3,\"mode\":\"D\",\"models\":{\"builder\":{\"effort\":\"medium\",\"model\":\"muse-spark-1.3-contributor\",\"provider\":\"meta\"},\"reviewer\":{\"effort\":\"high\",\"model\":\"muse-wonder-1.0\",\"provider\":\"meta\"}},\"rounds\":[{\"addressed\":[{\"change\":\"largest remainder, \\\"cents\\\" first\",\"claim_id\":\"C1\"}],\"claims\":[{\"id\":\"C1\",\"severity\":\"critical\",\"status\":\"PROVEN\",\"testSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"title\":\"Reparto de 100,00 € en 3 suma 99,99 — falta un céntimo\",\"validity\":\"VALID\"},{\"id\":\"C2\",\"severity\":\"minor\",\"status\":\"UNPROVEN\",\"testSha256\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"title\":\"Claim the reviewer could not reproduce\",\"validity\":null}],\"codeSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"contested\":[],\"n\":1,\"revisionSha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}],\"runId\":\"fixture-web-1\",\"sandbox\":\"docker:matrix-globe-runner:py311 --network none\",\"schema\":\"matrix-proof/v1\",\"status\":\"VERIFIED\",\"task\":{\"id\":\"split_installments\",\"specSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"tests\":{\"proven\":{\"passed\":1,\"total\":1},\"public\":{\"passed\":5,\"total\":5}}}",
+  "sha256": "6e54bb0590b91ba647391b4ba385bf15a9c86c485148ce5abe84dfd2b3e80f8d"
+}
