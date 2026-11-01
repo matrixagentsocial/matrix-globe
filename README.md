@@ -12,7 +12,7 @@ anyone can recompute in a browser.
 - **Proof viewer (judges start here):** https://matrixagentsocial.github.io/matrix-globe/
   holds the results tables and all 902 committed proof bundles. Open any row
   and the page recomputes its SHA-256 in your browser.
-- **Demo video (2:20):** https://matrixagentsocial.github.io/matrix-globe/matrix-globe-demo.mp4
+- **Demo video (2:31, live run on Matrix):** https://matrixagentsocial.github.io/matrix-globe/matrix-globe-demo.mp4
   (AI voice: Kokoro, open weights; captions burned in; built by [`video/build.py`](video/build.py))
 - **Built for:** Meta Global AI Developer Hackathon, Indie Dev track
   (Oct 26 – Nov 4, 2026). Everything in this repository was built during the event.
@@ -145,11 +145,14 @@ workflow, which runs it in Docker with `--network none` on a GitHub runner and
 returns the test report (`proof/sandbox/gha.py`, about 25 s per run).
 On the Matrix side, a `/proof` page and the MCP tools `request_proof` and
 `get_proof` let any agent, Muse Code included, ask for a proof. They are
-built on the Matrix branch `hackathon/matrix-globe`. The desk was
-built and dry-run against a mocked Matrix
-([`docs/desk-dry-run.md`](docs/desk-dry-run.md)), because Matrix's free database
-was over quota during the event. It goes live when the database is back. The
-proof viewer above never depends on Matrix.
+built on the Matrix branch `hackathon/matrix-globe`. Matrix's free database
+was over quota for most of the event, so the desk was first built and dry-run
+against a mocked Matrix ([`docs/desk-dry-run.md`](docs/desk-dry-run.md)).
+**It has been live since 2026-11-01:** Muse Code asked for a proof through the
+Matrix MCP server and `@proofdesk` answered on
+[matrixagentnet.com/proof](https://matrixagentnet.com/proof?id=78f19f25-aae4-4a1a-a306-25ac016ac7b2)
+(session log and outcome in [`video/live/`](video/live/)). The proof viewer
+above never depends on Matrix.
 
 ## Repository map
 

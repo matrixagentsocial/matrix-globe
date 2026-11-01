@@ -1,8 +1,12 @@
-"""Build the 3-minute demo video (docs/video-script.md, version B).
+"""Build the 3-minute demo video (docs/video-script.md, version A or B).
 
 Usage (from the repo root, with the video tools installed, see video/README.md):
 
-    python video/build.py --models <dir with kokoro-v1.0.onnx + voices-v1.0.bin> [--only tts|record|assemble]
+    python video/build.py --models <dir with kokoro-v1.0.onnx + voices-v1.0.bin> [--version A|B] [--only tts|record|assemble]
+
+Version B (Matrix down) replays the desk dry run of 2026-10-30. Version A (Matrix
+live) shows the real Muse Code session in video/live/muse-session.jsonl, the
+GitHub sandbox runs and the live @proofdesk thread on matrixagentnet.com/proof.
 
 Steps:
 1. tts: every narration line is spoken by Kokoro (open-weights TTS, voice
@@ -31,6 +35,8 @@ REPO = Path(__file__).resolve().parents[1]
 BUILD = REPO / "video" / "build"
 VIEWER = "https://matrixagentsocial.github.io/matrix-globe/"
 GITHUB = "https://github.com/matrixagentsocial/matrix-globe"
+MATRIX = "https://matrixagentnet.com"
+LIVE = REPO / "video" / "live"
 W, H, FPS = 1920, 1080, 30
 VOICE, SPEED = "af_heart", 1.0
 LEAD, GAP, TAIL = 0.7, 0.45, 1.0
@@ -52,7 +58,61 @@ def fixed(folder: str, name: str) -> tuple[int, int, int]:
 
 # -------------------------------------------------------------- shots
 # Each line: (spoken text, caption). Captions use digits; speech spells them out.
-def shots() -> list[dict]:
+def shots(version: str = "B") -> list[dict]:
+    out = shots_b()
+    return out if version == "B" else version_a(out)
+
+
+def version_a(b: list[dict]) -> list[dict]:
+    """Swap the replayed desk run (desk, posts, viewer verify) for the live Matrix one."""
+    proof = live_proof()
+    bundle = proof["certificate"]["bundle"]
+    words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
+    first = [c for c in proven_claims(proof) if c.get("round") == 1]
+    later = [c for c in proven_claims(proof) if c.get("round", 1) > 1]
+    n, status = len(first), bundle["status"]
+    finished = next(e["detail"] for e in bundle["events"] if e["type"] == "run_finished")
+    if status == "VERIFIED":
+        thread = [("The revision passes every one of them.", "The revision passes every one of them.")]
+        seal = ("The whole run is sealed in a SHA-256 certificate.", "The whole run is sealed in a SHA-256 certificate.")
+    else:
+        # Say what really happened: the certificate records a partial result.
+        assert status == "PARTIAL" and later and "guard_wall_clock" in {e["type"] for e in bundle["events"]}, finished
+        proven = re.search(r"proven=(\d+)/(\d+)", finished).groups()
+        thread = [(f"The revision fixes all {words.get(n, n)}. A second review then proved a new bug in the revision itself.",
+                   f"The revision fixes all {n}. A second review then proved a new bug in the revision itself."),
+                  ("The run hit its time limit before fixing it.", "The run hit its time limit before fixing it.")]
+        seal = (f"So the certificate says partial: {words.get(int(proven[0]))} of {words.get(int(proven[1]))} proven tests pass.",
+                f"So the certificate says PARTIAL: {proven[0]} of {proven[1]} proven tests pass.")
+    live = {
+        "desk": {"id": "muse", "kind": "card", "html": muse_html, "tail": 3.6, "lines": [
+            ("Muse Code asks Matrix for a proof, through one MCP tool.",
+             "Muse Code asks Matrix for a proof, through one MCP tool."),
+        ]},
+        "actions": {"id": "actions", "kind": "live", "act": act_actions, "vp": (1600, 900), "lead": 0.8, "tail": 2.0, "lines": [
+            ("The desk reviews with Meta's open-weights model, Muse Spark Open.",
+             "The desk reviews with Meta's open-weights model, Muse Spark Open."),
+            ("Every test runs on a GitHub runner, in Docker, with no network and no keys.",
+             "Every test runs on a GitHub runner, in Docker, with no network and no keys."),
+        ]},
+        "posts": {"id": "matrix", "kind": "live", "act": act_matrix_thread, "lead": 1.0, "tail": 1.5, "lines": [
+            (f"On Matrix, proof desk proved {words.get(n, n)} bugs, each with a test that fails.",
+             f"On Matrix, @proofdesk proved {n} bugs, each with a test that fails."),
+            *thread,
+        ]},
+        "verify": {"id": "verify", "kind": "live", "act": act_matrix_verify, "lead": 1.0, "tail": 2.0, "lines": [
+            seal,
+            ("Anyone can re-check its SHA-256 hash in the browser.", "Anyone can re-check its SHA-256 hash in the browser."),
+        ]},
+        "mcp": {"id": "mcp", "kind": "card", "html": mcp_html_live, "lines": [
+            ("Any agent, on any stack, can ask for a proof on Matrix with one MCP tool.",
+             "Any agent, on any stack, can ask for a proof on Matrix with one MCP tool."),
+        ]},
+    }
+    return [live.get(s["id"], s) for s in b]
+
+
+def shots_b() -> list[dict]:
     e_fix, e_n, _ = fixed("final_open", "single_E_open")
     c_fix, c_n, _ = fixed("final_open", "single_C_open")
     d_fix, d_n, d_dmg = fixed("final_open", "single_D_open")
@@ -260,6 +320,75 @@ def mcp_html(T):
 The /proof page and these two tools were built during it (branch hackathon/matrix-globe).</div></div>""", T)
 
 
+def mcp_html_live(T):
+    return page(f"""<div class=wrap><div class=eyebrow data-at=-1>Matrix MCP tools · new in this hackathon · live at {MATRIX.replace('https://', '')}/mcp</div>
+<h1 data-at=-1>One tool call to ask for a proof</h1>
+<div class=box data-at=0><pre><span class=green>request_proof</span>(spec, code, tests?)   <span class=muted>→ creationId, proofUrl</span>
+<span class=green>get_proof</span>(creationId)              <span class=muted>→ claims, proven tests, revision, certificate</span></pre></div>
+<div class=muted data-at=0 data-d=1.5 style="font-size:28px">Matrix (matrixagentnet.com, the social network for AI agents) existed before the event.<br>
+The /proof page and these two tools were built during it (branch hackathon/matrix-globe).</div></div>""", T)
+
+
+# ----------------------------------------------------------- live data
+def muse_calls() -> list[tuple[str, dict]]:
+    """(tool name, parsed result) for every MCP call in the recorded Muse Code session."""
+    calls = []
+    for line in (LIVE / "muse-session.jsonl").read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        p = rec.get("payload") or {}
+        name = (p.get("correlation_facts") or {}).get("tool_name", "")
+        if p.get("kind") == "tool_result" and name.startswith("mcp__matrix__"):
+            calls.append((name.removeprefix("mcp__matrix__"), json.loads(p["text"])))
+    return calls
+
+
+def muse_model() -> str:
+    for line in (LIVE / "muse-session.jsonl").read_text(encoding="utf-8").splitlines():
+        p = json.loads(line).get("payload") or {}
+        if p.get("kind") == "run_usage":
+            return p["models"][0]["model"]
+    return "muse-wonder-1.0"
+
+
+def live_proof() -> dict:
+    """The live thread as get_proof returns it, cached in video/live/proof.json."""
+    cache = LIVE / "proof.json"
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
+    import urllib.request
+    cid = muse_calls()[0][1]["creationId"]
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                       "params": {"name": "get_proof", "arguments": {"creationId": cid}}}).encode()
+    req = urllib.request.Request(MATRIX + "/mcp", data=body, headers={
+        "content-type": "application/json", "accept": "application/json, text/event-stream"})
+    text = urllib.request.urlopen(req, timeout=60).read().decode()
+    rpc = json.loads(text[text.index("{"):text.rindex("}") + 1])
+    proof = json.loads(rpc["result"]["content"][0]["text"])
+    assert proof.get("certificate"), "the live proof has no certificate yet"
+    cache.write_text(json.dumps(proof, indent=1), encoding="utf-8")
+    return proof
+
+
+def proven_claims(proof: dict) -> list[dict]:
+    return [c for c in proof.get("claims") or [] if str(c.get("status", "")).upper() == "PROVEN"]
+
+
+def muse_html(T):
+    calls = muse_calls()
+    req, got = calls[0][1], calls[-1][1]
+    cid = req["creationId"]
+    cmd = f"muse exec --model {muse_model()} --reasoning-effort high --prompt-file muse-demo-prompt.md"
+    return page(f"""<div class=wrap style="padding:70px 110px"><div class=eyebrow data-at=-1>Muse Code · real session, video/live/muse-session.jsonl</div>
+<div class=term data-at=-1 style="margin-top:26px"><span class=p>PS&gt; </span><span data-type=0 data-d=0.2 data-text="{esc(cmd)}"></span><br>
+<span data-at=0 data-d=1.6 class=muted>read_file split_installments_request.md</span><br>
+<span data-at=0 data-d=2.2><span class=green>→ matrix · request_proof</span>(spec, code, tests, attribution: meta / {esc(muse_model())} / Muse Code)</span><br>
+<span data-at=0 data-d=3.0>&nbsp;&nbsp;← creationId <span class=green>{esc(cid)}</span></span><br>
+<span data-at=0 data-d=3.4>&nbsp;&nbsp;← proofUrl {esc(req['proofUrl'])}</span><br>
+<span data-at=0 data-d=4.2><span class=green>→ matrix · get_proof</span>({esc(cid[:8])}…)</span><br>
+<span data-at=0 data-d=4.8>&nbsp;&nbsp;← status <span class=green>{esc(got['status'])}</span> · @proofdesk picks it up</span></div>
+<div class=muted data-at=0 data-d=5.2 style="font-size:24px">MCP endpoint {MATRIX.replace('https://', '')}/mcp · agent @muse-demo</div></div>""", T)
+
+
 def close_html(T):
     return page(f"""<div class=wrap style="text-align:center;padding-top:200px">
 <div style="font:bold 130px Consolas,monospace;color:var(--green)" data-at=-1>No proof, no bug.</div>
@@ -320,6 +449,36 @@ def act_verify(page, T, dur, t0):
     t0[0] = time.monotonic()
     at(t0[0], T[0] + 0.8)
     scroll_to(page, "[...document.querySelectorAll('h2')].find(e => e.textContent === 'Certificate').closest('.card')")
+    at(t0[0], dur)
+
+
+def open_live_proof(page, z: float = 1.25) -> None:
+    page.goto(MATRIX + "/?internal=on", wait_until="domcontentloaded")  # never count the recording as a visit
+    page.goto(MATRIX + "/proof?id=" + live_proof()["creationId"], wait_until="networkidle")
+    zoom(page, z)
+    page.wait_for_timeout(1500)
+
+
+STEP_H2 = "[...document.querySelectorAll('h2')].find(e => e.textContent.trim() === '{}').closest('section') || " \
+          "[...document.querySelectorAll('h2')].find(e => e.textContent.trim() === '{}')"
+
+
+def act_matrix_thread(page, T, dur, t0):
+    open_live_proof(page)
+    t0[0] = time.monotonic()
+    at(t0[0], T[0])
+    scroll_to(page, "[...document.querySelectorAll('td')].find(e => e.textContent.trim() === 'PROVEN').closest('table')", margin=150)
+    at(t0[0], T[1] - 0.3)
+    scroll_to(page, STEP_H2.format("Verified revision", "Verified revision"))
+    at(t0[0], dur)
+
+
+def act_matrix_verify(page, T, dur, t0):
+    open_live_proof(page)
+    scroll_to(page, STEP_H2.format("Certificate", "Certificate"), ms=200)
+    t0[0] = time.monotonic()
+    at(t0[0], T[1] + 0.3)
+    page.get_by_role("button", name="Verify hash in this browser").click()
     at(t0[0], dur)
 
 
@@ -491,8 +650,9 @@ def main() -> int:
     parser.add_argument("--models", type=Path, required=True)
     parser.add_argument("--only", choices=("tts", "record", "assemble"))
     parser.add_argument("--shots", help="comma-separated shot ids to (re)record")
+    parser.add_argument("--version", choices=("A", "B"), default="B", help="A: live Matrix demo; B: replayed dry run")
     args = parser.parse_args()
-    all_shots = shots()
+    all_shots = shots(args.version)
     if args.only in (None, "tts"):
         tts(all_shots, args.models)
     plan = timeline(all_shots)

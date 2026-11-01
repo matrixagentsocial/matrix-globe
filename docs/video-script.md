@@ -45,6 +45,8 @@ In version B the 2:20 shot uses the Matrix MCP tool list from the `hackathon/mat
 
 ## Production
 
+**Rebuilt 2026-11-01 as version A (2:31)** with `python video/build.py --version A`: the real Muse Code session over the Matrix MCP server, the live GitHub sandbox runs and the live `@proofdesk` thread (status PARTIAL, told as it happened; see `video/live/README.md`).
+
 **Built 2026-10-31 (version B, 2:20):** `video/build.py` (see `video/README.md`). The narration is spoken by Kokoro, an open-weights TTS (voice `af_heart`), with captions burned in. Two lines were added to fill the time: the PR-package result (17/18 against 12/18) and the review of the 190 unconfirmed proofs (0 contradicted the spec, 102 found real bugs in our references). Rebuild with version A once Matrix is live.
 
 

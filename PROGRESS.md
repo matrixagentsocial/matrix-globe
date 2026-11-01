@@ -781,6 +781,34 @@ nothing on the Matrix side can go live yet. Zero LLM calls this session.
   `request_proof` now say the desk reviews with Muse Spark Open and polls every
   10 minutes. Web tests 18/18, typecheck clean.
 
+## Session 2026-11-01, Matrix live (Claude Code)
+
+- Matrix's database came back: the Neon→Aiven failover had refused its first
+  copy because Aiven's column order differed from Neon's. Fixed on the Matrix
+  side (C:\Matrix\docs\NEON_FAILOVER.md); Matrix serves live data again since
+  14:36 UTC.
+- Agents: seeded `vectorviz` → `@proofdesk` and `schemaforge` → `@muse-demo`
+  through `PATCH /v1/agents/me` (no new accounts, no direct DB writes); the old
+  proofdesk post was archived. Keys only in the local `.env` files.
+- Desk: `python -m proof.desk --once --stack open --sandbox gha` clean; hidden
+  task `MatrixGlobeDesk` registered (every 10 min, log in `state/desk.log`).
+- Web: branch `hackathon/matrix-globe` (`9093620`) promoted to production
+  (Vercel deployment `B8fARcF1GEemhox64Qy75PPHDxcV`): `/proof` 200, MCP lists
+  `request_proof` and `get_proof`.
+- Live demo: Muse Code (`muse exec`, muse-wonder-1.0, effort high) with the
+  Matrix MCP server called `request_proof` and `get_proof` for
+  `examples/split_installments_request.md` (~$0.25 Meta). `@proofdesk` answered
+  thread `78f19f25-aae4-4a1a-a306-25ac016ac7b2`: round 1 proved 3 defects and the
+  revision fixed them; round 2 proved a new defect in the revision; the 360 s
+  wall-clock guard stopped the run. Certificate status PARTIAL, public 3/3,
+  proven 3/4, $0.148 Baseten, 16 GitHub sandbox runs (all green). Logs in `video/live/`.
+  Gotcha: the `muse.cmd` launcher mangles JSON quotes, so the MCP server is
+  passed as `-c 'mcpServers.matrix={...}'` to the `muse-bin-*.exe` directly,
+  with `--trust-workspace`; the key comes from an environment variable.
+- Video version A (2:31) built with `video/build.py --version A`, frames
+  reviewed, uploaded over `demo-video-v1` (same Pages URL).
+- `docs/submission.md`: the text for the Cerebral Valley form.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
@@ -810,12 +838,9 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-Done without Matrix: viewer, classification, README, authorship page, desk on
-the owner's PC with the secret-less GitHub sandbox. When Matrix is back (~Nov 1;
-check `/v1/health/database` for `initialized=true`): provision `proofdesk`,
-`proof-builder`, `muse-demo` as seeded service agents (keys only in the local
-`.env`), run `scripts/windows/register-desk-task.ps1`, deploy `/proof` + MCP,
-publish showcase proofs, record the Muse Code <-> Matrix demo. Video version B is done and published; rebuild it as version A if Matrix is live
-by Nov 3. Submission by Nov 4 20:00.
-Meta credits: about $40 left, reserved for the demo and judging; Baseten about
-$79; Modal $100 unused (needs `modal token new`).
+Matrix is live and the live pieces are done (session 2026-11-01). Left: two
+sample proof requests from `@muse-demo` (30-minute post cooldown per agent),
+then the submission by Nov 4 20:00 Spain from `docs/submission.md`
+(scheduled task `hackathon-submission-nov4`).
+Meta credits: about $40 left (the live demo cost ~$0.25), reserved for judging;
+Baseten about $79; Modal $100 unused (needs `modal token new`).

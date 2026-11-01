@@ -1,0 +1,235 @@
+{
+ "creationId": "78f19f25-aae4-4a1a-a306-25ac016ac7b2",
+ "title": "Proof request: split_installments (Muse Code demo)",
+ "status": "partial",
+ "proofUrl": "https://matrixagentnet.com/proof?id=78f19f25-aae4-4a1a-a306-25ac016ac7b2",
+ "claims": [
+  {
+   "id": "C1",
+   "title": "Installments do not sum to total and ignore largest-remainder distribution",
+   "severity": "critical",
+   "status": "PROVEN",
+   "validity": null,
+   "round": 1
+  },
+  {
+   "id": "C2",
+   "title": "Does not reject total with more than 2 decimal places",
+   "severity": "critical",
+   "status": "PROVEN",
+   "validity": null,
+   "round": 1
+  },
+  {
+   "id": "C3",
+   "title": "Does not raise ValueError for non-finite / non-numeric totals",
+   "severity": "critical",
+   "status": "PROVEN",
+   "validity": null,
+   "round": 1
+  },
+  {
+   "id": "C1",
+   "title": "large finite totals incorrectly raise / lose precision due to quantize with context prec 28",
+   "severity": "critical",
+   "status": "PROVEN",
+   "validity": null,
+   "round": 2
+  }
+ ],
+ "tests": {
+  "proven": {
+   "passed": 3,
+   "total": 4
+  },
+  "public": {
+   "passed": 3,
+   "total": 3
+  }
+ },
+ "models": {
+  "builder": {
+   "effort": "medium",
+   "model": "meta-models/muse-spark-open-1026",
+   "provider": "baseten"
+  },
+  "reviewer": {
+   "effort": "high",
+   "model": "meta-models/muse-spark-open-1026",
+   "provider": "baseten"
+  }
+ },
+ "revisedCode": "from decimal import Decimal, InvalidOperation\n\ndef split_installments(total: str, n: int) -> list[Decimal]:\n    # Validate n: must be int >=1, bool not accepted\n    if not isinstance(n, int) or isinstance(n, bool) or n < 1:\n        raise ValueError(\"n must be an integer >= 1\")\n    # Validate total is a string\n    if not isinstance(total, str):\n        raise ValueError(\"total must be a decimal string\")\n    # Parse total with Decimal; any parsing error -> ValueError\n    try:\n        amount = Decimal(total)\n    except Exception:\n        raise ValueError(\"total must be a valid decimal string\")\n    # Must be finite (reject NaN, Infinity, -Infinity, sNaN)\n    try:\n        if not amount.is_finite():\n            raise ValueError(\"total must be finite\")\n    except AttributeError:\n        # is_finite should exist on Decimal, but guard\n        raise ValueError(\"total must be finite\")\n    # Must be >= 0\n    if amount < 0:\n        raise ValueError(\"total must be >= 0\")\n    # Must have at most 2 decimal places\n    # Exponent < -2 means more than 2 digits after decimal point\n    if amount.as_tuple().exponent < -2:\n        raise ValueError(\"total must have at most 2 decimal places\")\n    # Quantize total to exactly 2 decimal places for cent calculation\n    # amount already has <=2 dp, quantize will pad to 2 dp without changing value\n    total_quantized = amount.quantize(Decimal(\"0.01\"))\n    total_cents = int((total_quantized * 100).to_integral_value())\n    base = total_cents // n\n    remainder = total_cents % n\n    result: list[Decimal] = []\n    for i in range(n):\n        cents = base + (1 if i < remainder else 0)\n        d = (Decimal(cents) / Decimal(100)).quantize(Decimal(\"0.01\"))\n        result.append(d)\n    return result",
+ "provenTests": "# Proven failing tests by @proofdesk (each fails on the submitted code).\n# Claim C1: Installments do not sum to total and ignore largest-remainder distribution\ndef test_c1_sum_and_distribution():\n    from decimal import Decimal\n    from solution import split_installments\n    result = split_installments(\"100.00\", 3)\n    assert result == [Decimal(\"33.34\"), Decimal(\"33.33\"), Decimal(\"33.33\")]\n\n# Claim C2: Does not reject total with more than 2 decimal places\ndef test_c2_rejects_three_decimal_places():\n    import pytest\n    from solution import split_installments\n    with pytest.raises(ValueError):\n        split_installments(\"10.005\", 2)\n\n# Claim C3: Does not raise ValueError for non-finite / non-numeric totals\ndef test_c3_rejects_nan_infinity_non_numeric():\n    import pytest\n    from solution import split_installments\n    with pytest.raises(ValueError):\n        split_installments(\"NaN\", 2)\n\n# Claim C1: large finite totals incorrectly raise / lose precision due to quantize with context prec 28\ndef test_c1_large_total_sum_exact():\n    from decimal import Decimal\n    from solution import split_installments\n    total = \"123456789012345678901234567890.12\"\n    n = 1\n    result = split_installments(total, n)\n    # spec: n==1 returns [Decimal(total)] quantized to cents, sum exactly to total\n    assert len(result) == n\n    assert result[0] == Decimal(\"123456789012345678901234567890.12\")\n    assert result[0].as_tuple().exponent == -2\n    assert sum(result, Decimal(\"0.00\")) == Decimal(total)",
+ "certificate": {
+  "sha256": "3817f8ee261def1ddeb6f58186318aa2ce1f156e4486c130844a8c59f0f310e9",
+  "schema": "matrix-proof/v1",
+  "bundle": {
+   "cost": {
+    "inputTokens": 5758,
+    "outputTokens": 33460,
+    "reviewerUsd": "0.137170",
+    "usd": "0.147995"
+   },
+   "createdAt": "2026-11-01T14:58:13.786661Z",
+   "events": [
+    {
+     "detail": "mode=D task=78f19f25-aae4-4a1a-a306-25ac016ac7b2",
+     "round": null,
+     "type": "run_started"
+    },
+    {
+     "detail": "initial code supplied",
+     "round": null,
+     "type": "builder_skipped"
+    },
+    {
+     "detail": "round 1 verdict=defects_found claims=3",
+     "round": 1,
+     "type": "review_completed"
+    },
+    {
+     "detail": "C1: PROVEN",
+     "round": 1,
+     "type": "claim"
+    },
+    {
+     "detail": "C2: PROVEN",
+     "round": 1,
+     "type": "claim"
+    },
+    {
+     "detail": "C3: PROVEN",
+     "round": 1,
+     "type": "claim"
+    },
+    {
+     "detail": "round 1 addressed=3 contested=0",
+     "round": 1,
+     "type": "revision_completed"
+    },
+    {
+     "detail": "round 2 verdict=defects_found claims=1",
+     "round": 2,
+     "type": "review_completed"
+    },
+    {
+     "detail": "C1: PROVEN",
+     "round": 2,
+     "type": "claim"
+    },
+    {
+     "detail": "wall clock 360.0s exceeded before reviser",
+     "round": null,
+     "type": "guard_wall_clock"
+    },
+    {
+     "detail": "status=PARTIAL public=3/3 proven=3/4",
+     "round": null,
+     "type": "run_finished"
+    }
+   ],
+   "finalCode": "from decimal import Decimal, InvalidOperation\n\ndef split_installments(total: str, n: int) -> list[Decimal]:\n    # Validate n: must be int >=1, bool not accepted\n    if not isinstance(n, int) or isinstance(n, bool) or n < 1:\n        raise ValueError(\"n must be an integer >= 1\")\n    # Validate total is a string\n    if not isinstance(total, str):\n        raise ValueError(\"total must be a decimal string\")\n    # Parse total with Decimal; any parsing error -> ValueError\n    try:\n        amount = Decimal(total)\n    except Exception:\n        raise ValueError(\"total must be a valid decimal string\")\n    # Must be finite (reject NaN, Infinity, -Infinity, sNaN)\n    try:\n        if not amount.is_finite():\n            raise ValueError(\"total must be finite\")\n    except AttributeError:\n        # is_finite should exist on Decimal, but guard\n        raise ValueError(\"total must be finite\")\n    # Must be >= 0\n    if amount < 0:\n        raise ValueError(\"total must be >= 0\")\n    # Must have at most 2 decimal places\n    # Exponent < -2 means more than 2 digits after decimal point\n    if amount.as_tuple().exponent < -2:\n        raise ValueError(\"total must have at most 2 decimal places\")\n    # Quantize total to exactly 2 decimal places for cent calculation\n    # amount already has <=2 dp, quantize will pad to 2 dp without changing value\n    total_quantized = amount.quantize(Decimal(\"0.01\"))\n    total_cents = int((total_quantized * 100).to_integral_value())\n    base = total_cents // n\n    remainder = total_cents % n\n    result: list[Decimal] = []\n    for i in range(n):\n        cents = base + (1 if i < remainder else 0)\n        d = (Decimal(cents) / Decimal(100)).quantize(Decimal(\"0.01\"))\n        result.append(d)\n    return result\n",
+   "finalCodeSha256": "6742b11f7dc4ddca15e9299bd3689538a7c21d5895b6a0695e5774f110325c10",
+   "llmCalls": 3,
+   "mode": "D",
+   "models": {
+    "builder": {
+     "effort": "medium",
+     "model": "meta-models/muse-spark-open-1026",
+     "provider": "baseten"
+    },
+    "reviewer": {
+     "effort": "high",
+     "model": "meta-models/muse-spark-open-1026",
+     "provider": "baseten"
+    }
+   },
+   "rounds": [
+    {
+     "addressed": [
+      {
+       "change": "Implemented largest-remainder distribution via integer cents (base//n and remainder) to ensure exact sum and deterministic first-installments extra cent.",
+       "claim_id": "C1"
+      },
+      {
+       "change": "Added validation that Decimal exponent >= -2, raising ValueError for more than 2 decimal places like '10.005'.",
+       "claim_id": "C2"
+      },
+      {
+       "change": "Convert Decimal parsing errors and non-finite values (NaN/Infinity) to ValueError via try/except and is_finite() check.",
+       "claim_id": "C3"
+      }
+     ],
+     "claims": [
+      {
+       "id": "C1",
+       "severity": "critical",
+       "status": "PROVEN",
+       "testSha256": "a62974ba10a5f9e2071072339dcae3bc49022e20c7dee4388cdd462fcb027e03",
+       "title": "Installments do not sum to total and ignore largest-remainder distribution",
+       "validity": null
+      },
+      {
+       "id": "C2",
+       "severity": "critical",
+       "status": "PROVEN",
+       "testSha256": "5532bc46f01aa56a5e0fc9e7dd587aee26a611d6214f2aac7dae4738a54c7e05",
+       "title": "Does not reject total with more than 2 decimal places",
+       "validity": null
+      },
+      {
+       "id": "C3",
+       "severity": "critical",
+       "status": "PROVEN",
+       "testSha256": "b4994d9e8abe086f1d4053262a8541fc43f498b3f2b6be1ea6b149a9f8ce4649",
+       "title": "Does not raise ValueError for non-finite / non-numeric totals",
+       "validity": null
+      }
+     ],
+     "codeSha256": "4476ba453f803421fb24fc91f287fa1dcc07eebb569e9408d423685bb2c571df",
+     "contested": [],
+     "n": 1,
+     "revisionSha256": "6742b11f7dc4ddca15e9299bd3689538a7c21d5895b6a0695e5774f110325c10"
+    },
+    {
+     "addressed": [],
+     "claims": [
+      {
+       "id": "C1",
+       "severity": "critical",
+       "status": "PROVEN",
+       "testSha256": "813fde8ad9d0ed3c491dd39d327add5cefc7f12f80be7b6873a821c6b506abec",
+       "title": "large finite totals incorrectly raise / lose precision due to quantize with context prec 28",
+       "validity": null
+      }
+     ],
+     "codeSha256": "6742b11f7dc4ddca15e9299bd3689538a7c21d5895b6a0695e5774f110325c10",
+     "contested": [],
+     "n": 2,
+     "revisionSha256": null
+    }
+   ],
+   "runId": "desk-78f19f25-aae4-4a1a-a306-25ac016ac7b2-d62a5f20",
+   "sandbox": "github-actions:docker python:3.11-slim --network none",
+   "schema": "matrix-proof/v1",
+   "status": "PARTIAL",
+   "target": "desk:78f19f25-aae4-4a1a-a306-25ac016ac7b2",
+   "task": {
+    "id": "78f19f25-aae4-4a1a-a306-25ac016ac7b2",
+    "specSha256": "8dc7807ea79bf99ddd54c8f667b3ee7445cbe6ad68a621226cb5a9d7d5079198"
+   },
+   "tests": {
+    "proven": {
+     "passed": 3,
+     "total": 4
+    },
+    "public": {
+     "passed": 3,
+     "total": 3
+    }
+   }
+  }
+ },
+ "next": "Final. Anyone can verify the sha256 on the proof page."
+}
