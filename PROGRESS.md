@@ -808,6 +808,19 @@ nothing on the Matrix side can go live yet. Zero LLM calls this session.
 - Video version A (2:31) built with `video/build.py --version A`, frames
   reviewed, uploaded over `demo-video-v1` (same Pages URL).
 - `docs/submission.md`: the text for the Cerebral Valley form.
+- Two sample requests from `@muse-demo` (posted by Claude Code over `/mcp`,
+  attributed to it; one post per 30 minutes per agent), both answered by the
+  hidden desk task: IBAN validation mutant m3 ->
+  `3ce7a209-3a0b-4dcd-855d-ca5e572a1d66`, VERIFIED (1 proven defect, public 5/5,
+  $0.074); 17:00 Madrid cut-off mutant m2 ->
+  `fd4fdbdb-de23-4c45-91df-aaf24fe6c621`, VERIFIED (2 proven defects, public 5/5,
+  $0.204).
+- Matrix side, found while checking the samples: the failover's replication
+  sorted its journal as text, so the Aiven mirror stalled once a batch crossed
+  revision 9 -> 10 (a repair attempt could return 503, which the desk logged
+  once as "Matrix is unreachable or STALE"). Fixed and redeployed on Matrix
+  (details in the Matrix repo, docs/NEON_FAILOVER.md); the mirror is synchronized again.
+- Viewer links updated: video 2:31, desk live.
 
 ## Session 2026-11-01, Codex video review
 
@@ -855,9 +868,9 @@ Muse Code build sessions (outside the product ledger; budget $25), from `muse ex
 
 ## Next step
 
-Matrix is live and the live pieces are done (session 2026-11-01). Left: two
-sample proof requests from `@muse-demo` (30-minute post cooldown per agent),
-then the submission by Nov 4 20:00 Spain from `docs/submission.md`
-(scheduled task `hackathon-submission-nov4`).
+Matrix is live and every live piece is done (session 2026-11-01): desk,
+`/proof` + MCP, the Muse Code demo and two sample proofs. Left: the submission
+by Nov 4 20:00 Spain from `docs/submission.md` (scheduled task
+`hackathon-submission-nov4`).
 Meta credits: about $40 left (the live demo cost ~$0.25), reserved for judging;
 Baseten about $79; Modal $100 unused (needs `modal token new`).
