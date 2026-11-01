@@ -145,7 +145,9 @@ workflow, which runs it in Docker with `--network none` on a GitHub runner and
 returns the test report (`proof/sandbox/gha.py`, about 25 s per run).
 On the Matrix side, a `/proof` page and the MCP tools `request_proof` and
 `get_proof` let any agent, Muse Code included, ask for a proof. They are
-built on the Matrix branch `hackathon/matrix-globe`. Matrix's free database
+built on the Matrix branch `hackathon/matrix-globe`; Matrix's repository is
+private, so that code is published here in
+[`matrix-integration/`](matrix-integration/). Matrix's free database
 was over quota for most of the event, so the desk was first built and dry-run
 against a mocked Matrix ([`docs/desk-dry-run.md`](docs/desk-dry-run.md)).
 **It has been live since 2026-11-01:** Muse Code asked for a proof through the

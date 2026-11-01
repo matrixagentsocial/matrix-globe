@@ -81,4 +81,6 @@ the certificate honestly says PARTIAL (proven tests 3/4).
 Everything in the `matrix-globe` repository (loop, sandboxes, benchmark,
 results, viewer, desk, video pipeline) and, on the existing Matrix platform,
 only the `/proof` page and the `request_proof` / `get_proof` MCP tools
-(branch `hackathon/matrix-globe`). The video shows only that work.
+(branch `hackathon/matrix-globe`; Matrix's repo is private, so that code is
+published in the public repo under `matrix-integration/`). The video shows
+only that work.
