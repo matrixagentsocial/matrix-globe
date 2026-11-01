@@ -809,6 +809,23 @@ nothing on the Matrix side can go live yet. Zero LLM calls this session.
   reviewed, uploaded over `demo-video-v1` (same Pages URL).
 - `docs/submission.md`: the text for the Cerebral Valley form.
 
+## Session 2026-11-01, Codex video review
+
+- Reviewed the final version A MP4 (150.700 s, 1080p30) using scene samples,
+  full-resolution frames, a complete decode, audio loudness measurement and
+  local transcription of the final AAC track. No LLM API spend; no video or
+  publication changes. Audio was checked technically, not listened to.
+- Public Pages MP4 is byte-identical to the local final export (SHA-256
+  `20a0b9a96324c5412867e11c1446e24479cb5ad928003bb60fc3cc38d8b13580`).
+- Recounted final_open JSONL: single E/C/D 41/54/57 of 60, PR E/D 12/17 of
+  18, zero clean controls damaged. Recomputed the live certificate hash;
+  PARTIAL public 3/3, proven 3/4 agrees with the narration.
+- Assessment: export is sound; before submission prefer a real VERIFIED
+  demo, zoom small code/GitHub captures, and extend the 4.3-second closing
+  card. Minor stale labels in the viewer shot: video 2:20 / desk coming online.
+- Detailed Spanish review, contact sheets and transcription are in
+  `C:\Users\klasoz\.codex\visualizations\2026\11\01\01a197b1-a533-7420-8d7f-6bdd9607bb9c\video-review\`.
+
 ## Dollars spent
 
 Product ledger: $0.014354 total (12 calls in `state/ledger.jsonl`):
